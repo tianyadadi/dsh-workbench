@@ -133,6 +133,10 @@ PANELS = [
 - **卸载只改配置**：不删 node_modules 里的文件，重装可复用缓存
 - **面板可插拔**：`PANELS` 注册一行即可
 
+## 更新日志
+
+见 [CHANGELOG.md](CHANGELOG.md)。
+
 ## License
 
 MIT
