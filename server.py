@@ -279,7 +279,7 @@ def scan_plugins() -> dict:
             "size": human_size(size),
             "present": present,
             "enabled": enabled,
-            "configurable": b in PLUGIN_CONFIGS,
+            "configurable": (b in PLUGIN_CONFIGS) or (find_plugin_config(b) is not None),
             "protected": b in PROTECTED_BUNDLES,
             "is_builtin": b.startswith("@deepseek-ai"),
         })
@@ -454,6 +454,25 @@ PANELS = [
 # 核心插件不允许从面板里关掉，否则 DSH 起不来
 PROTECTED_BUNDLES = {"@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app"}
 
+# 常见字段名的中文标签（自动推断时用）
+KEY_LABELS = {
+    "scale": "缩放", "size": "大小", "width": "宽度", "height": "高度",
+    "sound": "音效", "vol": "音量", "volume": "音量", "mute": "静音",
+    "enabled": "启用", "enable": "启用", "on": "开启", "off": "关闭",
+    "theme": "主题", "lang": "语言", "language": "语言", "model": "模型",
+    "port": "端口", "host": "主机", "path": "路径", "dir": "目录",
+    "opacity": "透明度", "speed": "速度", "duration": "时长",
+    "timeout": "超时(ms)", "interval": "间隔(ms)", "delay": "延迟(ms)",
+    "bubble": "气泡", "pos": "位置", "position": "位置", "offset": "偏移",
+    "color": "颜色", "font": "字体", "size": "字号", "margin": "边距",
+    "padding": "内边距", "radius": "圆角", "shadow": "阴影",
+    "proxy": "代理", "url": "地址", "key": "密钥", "token": "令牌",
+    "debug": "调试", "log": "日志", "verbose": "详细输出",
+    "auto": "自动", "autoStart": "自动启动", "autoSave": "自动保存",
+    "intervalMs": "间隔(ms)", "retry": "重试", "maxRetry": "最大重试",
+    "cache": "缓存", "proxyOn": "代理开关", "themeName": "主题名",
+}
+
 # 插件 → 可视化字段定义（有这张表就渲染成滑块/开关，没有就退回 JSON 编辑器）
 PLUGIN_FIELDS = {
     "dsh-whale-widget": [
@@ -526,11 +545,90 @@ def remove_plugin(name: str) -> dict:
     }
 
 
+def _short_name(pkg: str) -> str:
+    n = pkg.split("/")[-1]
+    return n[4:] if n.startswith("dsh-") else n
+
+
+_CFG_FIND_CACHE: dict = {}
+
+
+def find_plugin_config(pkg: str):
+    """自动找插件的 JSON 配置文件。返回 Path 或 None。"""
+    if pkg in _CFG_FIND_CACHE:
+        return _CFG_FIND_CACHE[pkg]
+    short = _short_name(pkg)
+    cands = []
+    # 插件目录内优先
+    try:
+        base = MODULES / pkg
+        if base.is_dir():
+            for pat in ("*.config.json", "config.json", "settings.json", ".config.json"):
+                cands.extend(sorted(base.glob(pat)))
+    except OSError:
+        pass
+    # 用户目录下的常见命名
+    for name in (f"{short}.json", f"{short}.config.json", f".{short}.json",
+                 f".{short}-config.json", f".{short}-size.json"):
+        cands.append(DSH_HOME / name)
+    found = None
+    for c in cands:
+        try:
+            if c.is_file():
+                found = c
+                break
+        except OSError:
+            continue
+    _CFG_FIND_CACHE[pkg] = found
+    return found
+
+
+SKIP_KEYS = {"updatedat", "createdat", "id", "uuid", "version", "timestamps"}
+
+
+def infer_fields(obj: dict, prefix: str = "", depth: int = 0) -> list:
+    """从 JSON 推断表单字段；嵌套对象展开成 a.b 形式（最多两层）。"""
+    out = []
+    if depth > 2:
+        return out
+    for k, v in obj.items():
+        if k.startswith("_") or k.lower() in SKIP_KEYS:
+            continue
+        full = (prefix + "." + k) if prefix else k
+        label = KEY_LABELS.get(k, k if depth == 0 else full)
+        if isinstance(v, dict):
+            out.extend(infer_fields(v, full, depth + 1))
+        elif isinstance(v, bool):
+            out.append({"key": full, "label": label, "type": "bool", "value": v})
+        elif isinstance(v, (int, float)):
+            if 0 <= v <= 1:
+                lo, hi, st = 0, 1, 0.05
+            elif v <= 10:
+                lo, hi, st = 0, 20, 0.5
+            elif v <= 100:
+                lo, hi, st = 0, 200, 5
+            elif v <= 10000:
+                lo, hi, st = 0, 20000, 500
+            else:
+                lo, hi, st = 0, int(max(v * 2, 1000)), max(1, int(v / 20))
+            out.append({"key": full, "label": label, "type": "range",
+                        "min": lo, "max": hi, "step": st, "value": v})
+        elif isinstance(v, str):
+            out.append({"key": full, "label": label, "type": "text", "value": v})
+    return out
+
+
 def plugin_config(name: str) -> dict:
+    """读插件配置：优先手工登记的表，其次自动发现 + 自动推断字段。"""
     item = PLUGIN_CONFIGS.get(name)
-    if not item:
-        return {"ok": False, "error": "该插件没有独立配置文件（参数在它的界面/菜单里调）"}
-    label, p = item
+    if item:
+        label, p = item
+    else:
+        found = find_plugin_config(name)
+        if not found:
+            return {"ok": False,
+                    "error": "没找到这个插件的 JSON 配置（它可能用别的格式，或参数只能在其界面里调）"}
+        label, p = name, found
     p = Path(p)
     content = ""
     if p.exists():
@@ -538,19 +636,26 @@ def plugin_config(name: str) -> dict:
             content = p.read_text(encoding="utf-8")
         except Exception as e:
             return {"ok": False, "error": "读取失败: %s" % e}
+
     fields = []
-    if name in PLUGIN_FIELDS and content:
+    if content:
         try:
             cur = json.loads(content)
         except Exception:
             cur = {}
-        for f in PLUGIN_FIELDS[name]:
-            item = dict(f)
-            item["value"] = cur.get(f["key"])
-            fields.append(item)
+        if isinstance(cur, dict):
+            if name in PLUGIN_FIELDS:
+                # 手工表：字段顺序和标签都可控
+                for f in PLUGIN_FIELDS[name]:
+                    fd = dict(f)
+                    fd["value"] = cur.get(f["key"])
+                    fields.append(fd)
+            else:
+                # 自动推断：有 JSON 就出表单
+                fields = infer_fields(cur)
     return {"ok": True, "label": label, "path": str(p), "exists": p.exists(),
             "content": content, "fields": fields,
-            "visual": bool(fields)}
+            "visual": bool(fields), "auto": name not in PLUGIN_CONFIGS}
 
 
 def save_plugin_config(name: str, content: str) -> dict:

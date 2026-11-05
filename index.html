@@ -1166,14 +1166,15 @@ async function openPluginConfig(name){
     if(visual){
       try{
         const orig = JSON.parse(ta.value || '{}');
-        const out = {};
         form.querySelectorAll('[data-key]').forEach(el=>{
           const k = el.dataset.key;
-          if(el.type === 'checkbox') out[k] = el.checked;
-          else if(el.type === 'range') out[k] = Number(el.value);
-          else out[k] = el.value;
+          let val;
+          if(el.type === 'checkbox') val = el.checked;
+          else if(el.type === 'range') val = Number(el.value);
+          else val = el.value;
+          setPathDeep(orig, k, val);      // 支持 a.b.c 嵌套写回
         });
-        content = JSON.stringify(Object.assign(orig, out));
+        content = JSON.stringify(orig);
       }catch(e){ toast('原配置解析失败，请用 JSON 编辑：' + e.message, true); return }
     }
     btn.disabled = true; btn.textContent = '保存中…';
@@ -1188,6 +1189,18 @@ async function openPluginConfig(name){
     }catch(e){ toast('保存失败: '+e.message, true) }
     btn.disabled = false; btn.textContent = '保存';
   };
+}
+
+/* 按 "a.b.c" 路径写回嵌套对象 */
+function setPathDeep(obj, path, val){
+  const parts = String(path).split('.');
+  let cur = obj;
+  for (let i = 0; i < parts.length - 1; i++){
+    const k = parts[i];
+    if (!cur[k] || typeof cur[k] !== 'object' || Array.isArray(cur[k])) cur[k] = {};
+    cur = cur[k];
+  }
+  cur[parts[parts.length - 1]] = val;
 }
 
 /* 卸载确认：自定义警告窗，返回 Promise<boolean> */
