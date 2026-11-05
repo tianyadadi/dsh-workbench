@@ -1,0 +1,19 @@
+# 个人路径配置（含本机绝对路径，不要提交）
+config.json
+
+# 运行时
+server.log
+__pycache__/
+*.pyc
+*.pyo
+
+# 备份文件
+package.json.bak-*
+*.bak-*
+*.bak
+
+# 编辑器
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
