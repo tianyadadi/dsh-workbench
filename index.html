@@ -824,6 +824,7 @@ header{z-index:1000}
 <script src="lib/three.min.js"></script>
 <script src="galaxy.js"></script>
 <script src="solar.js"></script>
+<script src="graph.js"></script>
 </head>
 <body>
 <header>
@@ -843,7 +844,7 @@ header{z-index:1000}
 </div>
 
 <script>
-const state = {panels: [], cur: null, memItems: [], memDoc: null, star: null, galaxy: null, solar: null, memView: 'galaxy', docStats: null, pieMode: 'day'};
+const state = {panels: [], cur: null, memItems: [], memDoc: null, star: null, galaxy: null, solar: null, graph: null, memView: 'galaxy', docStats: null, pieMode: 'day'};
 try {
   const savedView = localStorage.getItem('wb-memview');
   state.memView = (savedView === 'flat' || !savedView) ? 'galaxy' : savedView;
@@ -851,7 +852,7 @@ try {
 // 直达链接：?panel=memory&view=pie （截图、收藏、发给别人看都方便）
 try {
   const qv = new URLSearchParams(location.search).get('view');
-  if(qv === 'pie' || qv === 'galaxy' || qv === 'solar') state.memView = qv;
+  if(qv === 'pie' || qv === 'galaxy' || qv === 'solar' || qv === 'graph') state.memView = qv;
   const pm = new URLSearchParams(location.search).get('pie');
   if(pm === 'day' || pm === 'month' || pm === 'file') state.pieMode = pm;
 } catch(_e){}
@@ -1349,6 +1350,7 @@ function renderMemory(d){
       <button class="act" id="viewGalaxy" onclick="setMemView('galaxy')">🌌 银河系</button>
       <button class="act" id="viewSolar" onclick="setMemView('solar')">☀ 太阳系</button>
       <button class="act" id="viewPie" onclick="setMemView('pie')">🥧 文档占比</button>
+      <button class="act" id="viewGraph" onclick="setMemView('graph')">🌸 关系图谱</button>
       <span style="align-self:center;color:var(--dim);font-size:12px" id="galaxyHint"></span>
     </div>
     <div class="mem-wrap">
@@ -1390,6 +1392,7 @@ function setMemView(mode){
   // 先销毁旧的三维场景
   if(state.galaxy){ try { state.galaxy.dispose(); } catch(_e){} state.galaxy = null; }
   if(state.solar){ try { state.solar.dispose(); } catch(_e){} state.solar = null; }
+  if(state.graph){ try { state.graph.dispose(); } catch(_e){} state.graph = null; }
 
   const bGal = document.getElementById('viewGalaxy');
   if(bGal){ bGal.style.borderColor = mode==='galaxy' ? 'var(--accent)' : 'rgba(90,160,190,.28)'; }
@@ -1397,6 +1400,8 @@ function setMemView(mode){
   if(bSolar){ bSolar.style.borderColor = mode==='solar' ? 'var(--accent)' : 'rgba(90,160,190,.28)'; }
   const bPie = document.getElementById('viewPie');
   if(bPie){ bPie.style.borderColor = mode==='pie' ? 'var(--accent)' : 'rgba(90,160,190,.28)'; }
+  const bGraph = document.getElementById('viewGraph');
+  if(bGraph){ bGraph.style.borderColor = mode==='graph' ? 'var(--accent)' : 'rgba(90,160,190,.28)'; }
   // 记忆类型的颜色图例只在三维视图里有意义
   const memLegend = document.querySelector('.star-box > .legend');
   if(memLegend){ memLegend.style.display = mode==='pie' ? 'none' : ''; }
@@ -1462,6 +1467,19 @@ function setMemView(mode){
         toast(p.name + ' · 暂未绑定记忆类型', false);
       }
     });
+  } else if(mode === 'graph'){
+    host.style.display = 'block';
+    host.innerHTML = '';
+    const hint = document.getElementById('galaxyHint');
+    if(hint) hint.textContent = '拖拽旋转 · 滚轮缩放 · 点光点看记忆 · 一朵花=一个类型';
+    if(typeof DSHGraph === 'undefined' || typeof THREE === 'undefined'){
+      host.innerHTML = '<div style="padding:24px;color:#7b8ea6;font-size:13px;line-height:1.9">' +
+        'graph.js 没加载成功，检查文件是否在 workbench 目录下。</div>';
+      return;
+    }
+    const cm = {};
+    ['pitfall','decision','preference','context','todo'].forEach(k=>{ cm[k] = kColor(k); });
+    state.graph = DSHGraph.create(host, state.memItems, (m)=>showMemTip(m), cm);
   } else if(mode === 'pie'){
     host.style.display = 'block';
     host.innerHTML = '';
