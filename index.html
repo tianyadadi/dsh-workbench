@@ -371,21 +371,49 @@ body.theme-hacker{
   --accent2:#7dffb0;       /* 霓虹亮绿 */
   --ok:#00ff41; --warn:#d4ff00; --bad:#ff3b3b;
   --radius:0px;
-  --kind-pitfall:#7dffb0; --kind-decision:#00ff41;
-  --kind-preference:#a855f7; --kind-context:#00ff41; --kind-todo:#d4ff00;
-  background:
+  /* 记忆类型色：黑客主题原本把 pitfall/decision/context 全设成绿，图谱和列表分不出类型。
+     这里保留荧光调，但五种都能一眼区分。 */
+  --kind-pitfall:#ff8a65; --kind-decision:#00ff41;
+  --kind-preference:#a855f7; --kind-context:#00e5ff; --kind-todo:#d4ff00;
+  background-color:#000402 !important;
+  background-image:
     radial-gradient(1100px 720px at 16% -12%, rgba(0,255,65,.18), transparent 62%),
     radial-gradient(900px 620px at 90% 110%, rgba(0,255,65,.13), transparent 60%),
     radial-gradient(760px 520px at 52% 46%, rgba(125,255,176,.055), transparent 72%),
-    #000402 !important;
+    linear-gradient(rgba(0,255,65,.10) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,65,.10) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,255,.07) 1px, transparent 1px),
+    linear-gradient(rgba(168,85,247,.06) 1px, transparent 1px) !important;
+  background-size: auto, auto, auto, 42px 42px, 42px 42px, 126px 126px, 168px 168px !important;
+  background-position: 0 0, 0 0, 0 0, 0 0, 0 0, 21px 0, 0 21px !important;
+  background-attachment: fixed !important;
 }
 /* 终端扫描线 */
+/* 数据瀑布：成排的彩色短"数据行"往下滚（纯 CSS，无 JS/无 canvas） */
 body.theme-hacker::before{
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
   background-image:
-    linear-gradient(rgba(0,255,65,.095) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,255,65,.095) 1px, transparent 1px),
-    radial-gradient(circle, rgba(0,255,65,.11) 1px, transparent 1px) !important;
-  background-size:42px 42px, 42px 42px, 84px 84px !important;
+    repeating-linear-gradient(0deg,
+      transparent 0 4px, rgba(0,255,65,.10) 4px 5px, transparent 5px 22px,
+      rgba(0,229,255,.06) 22px 23px, transparent 23px 38px,
+      rgba(168,85,247,.05) 38px 39px, transparent 39px 64px),
+    repeating-linear-gradient(90deg,
+      transparent 0 40px, rgba(0,255,65,.07) 40px 41px, transparent 41px 84px,
+      rgba(0,229,255,.05) 84px 85px, transparent 85px 128px) !important;
+  background-size: 100% 64px, 128px 100% !important;
+}
+
+/* 数据雨：一列列竖直光条往下落（24 根 <i>，只动 transform，走合成层） */
+.hacker-rain{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;display:none}
+body.theme-hacker .hacker-rain{display:block}
+.hacker-rain i{
+  position:absolute; top:-32vh; border-radius:1px;
+  animation-name:rainFall; animation-timing-function:linear; animation-iteration-count:infinite;
+  will-change:transform;
+}
+@keyframes rainFall{
+  from{ transform:translate3d(0,-32vh,0) }
+  to  { transform:translate3d(0,132vh,0) }
 }
 /* 扫描线：青 + 亮绿 */
 body.theme-hacker::after{
@@ -575,11 +603,24 @@ body.theme-hacker::before{
 }
 /* 缓慢下移的亮带 */
 body.theme-hacker::after{
-  background:linear-gradient(transparent, rgba(0,255,65,.09) 48%,
-    rgba(0,255,65,.16) 50%, transparent 52%) !important;
-  background-size:100% 300px !important;
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background:
+    linear-gradient(transparent,
+      rgba(0,229,255,.13) 41%,
+      rgba(125,255,176,.17) 46%,
+      rgba(0,255,65,.24) 50%,
+      rgba(168,85,247,.11) 54%,
+      rgba(255,176,0,.055) 59%,
+      transparent 64%),
+    repeating-linear-gradient(90deg,
+      rgba(0,255,65,.05) 0 2px, transparent 2px 64px,
+      rgba(0,229,255,.045) 64px 66px, transparent 66px 132px,
+      rgba(168,85,247,.04) 132px 134px, transparent 134px 200px) !important;
+  background-size:100% 300px, 200px 100% !important;
   animation:wbscan 6s linear infinite !important;
 }
+/* 背景网格/扫描带在 z-index:0，内容要抬到上面 */
+body.theme-hacker header, body.theme-hacker .layout{ position:relative; z-index:2; }
 /* 文字辉光 */
 body.theme-hacker .logo,
 body.theme-hacker h2,
@@ -932,11 +973,42 @@ try {
   }
 } catch (_e) {}
 
-try { applyTheme(localStorage.getItem(THEME_KEY) || 'tech'); } catch (_e) { applyTheme('tech'); }
+try {
+  const qt = new URLSearchParams(location.search).get('theme');
+  applyTheme(qt && THEMES.some(t => t.id === qt) ? qt : (localStorage.getItem(THEME_KEY) || 'tech'));
+} catch (_e) { applyTheme('tech'); }
+/* 黑客主题的数据雨：24 根竖直光条，位置/长度/速度/颜色都随机一点，才不会像一根根棍子 */
+function buildHackerRain(){
+  try{
+    if (document.querySelector('.hacker-rain')) return;
+    const host = document.createElement('div');
+    host.className = 'hacker-rain';
+    const COLORS = ['0,255,65', '0,229,255', '125,255,176', '168,85,247', '212,255,0'];
+    for (let i = 0; i < 38; i++){
+      const el = document.createElement('i');
+      const c = COLORS[Math.floor(Math.random() * COLORS.length)];
+      el.style.left = (Math.random() * 100).toFixed(2) + '%';
+      el.style.width = (1.5 + Math.random() * 1.8).toFixed(1) + 'px';
+      el.style.height = (14 + Math.random() * 30).toFixed(1) + 'vh';
+      el.style.background = `linear-gradient(180deg, transparent, rgba(${c},.75) 55%, rgba(${c},.18) 86%, transparent)`;
+      el.style.opacity = (0.5 + Math.random() * 0.5).toFixed(2);
+      el.style.animationDuration = (3 + Math.random() * 4.5).toFixed(1) + 's';
+      el.style.animationDelay = (-Math.random() * 10).toFixed(1) + 's';
+      host.appendChild(el);
+    }
+    document.body.appendChild(host);
+  } catch(_e) {}
+}
+buildHackerRain();
+
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt = (n) => n >= 1e6 ? (n/1e6).toFixed(2)+'M' : n >= 1e3 ? (n/1e3).toFixed(1)+'K' : String(n ?? 0);
 const KIND_FALLBACK = {pitfall:'#ff8a65',decision:'#4dd0e1',preference:'#c792ea',context:'#9ccc65',todo:'#ffd54f'};
+/* 黑客主题整页是绿底，图谱再用绿色就跟背景糊在一起了。
+   这一套是「非绿」的，只影响关系图谱和它的图例，不动其它视图和列表。 */
+const HACKER_GRAPH_COLORS = {pitfall:'#ff7a59',decision:'#4dd0e1',preference:'#c792ea',context:'#7aa2ff',todo:'#ffd54f'};
+const LEGEND_ORDER = ['pitfall','decision','preference','context','todo'];
 /* 主题取色辅助（多主题系统依赖这三个） */
 function cssVar(n){
   try { return getComputedStyle(document.body).getPropertyValue(n).trim(); } catch (_e) { return ''; }
@@ -1405,6 +1477,15 @@ function setMemView(mode){
   // 记忆类型的颜色图例只在三维视图里有意义
   const memLegend = document.querySelector('.star-box > .legend');
   if(memLegend){ memLegend.style.display = mode==='pie' ? 'none' : ''; }
+  // 图例圆点跟着当前视图的色板走（黑客主题的图谱用非绿色板）
+  try {
+    const hackerNow = document.body.classList.contains('theme-hacker');
+    document.querySelectorAll('.star-box > .legend span i').forEach(function(el, i){
+      const k = LEGEND_ORDER[i];
+      if (!k) return;
+      el.style.background = (mode === 'graph' && hackerNow) ? HACKER_GRAPH_COLORS[k] : kColor(k);
+    });
+  } catch(_e) {}
   // 标题副文案跟着视图走（三维视图讲编码规则，饼图讲统计口径）
   const sub = document.querySelector('#main h2 small');
   if(sub){
@@ -1478,7 +1559,8 @@ function setMemView(mode){
       return;
     }
     const cm = {};
-    ['pitfall','decision','preference','context','todo'].forEach(k=>{ cm[k] = kColor(k); });
+    const isHacker = document.body.classList.contains('theme-hacker');
+    LEGEND_ORDER.forEach(k=>{ cm[k] = isHacker ? HACKER_GRAPH_COLORS[k] : kColor(k); });
     state.graph = DSHGraph.create(host, state.memItems, (m)=>showMemTip(m), cm);
   } else if(mode === 'pie'){
     host.style.display = 'block';
