@@ -390,11 +390,19 @@
 
     /* ── 交互 ─────────────────────────────────────────────── */
     var dragging = false, autoSpin = true
+  /* 自动旋转的暂停与恢复：点击/拖动只是「暂时」停转，4 秒后自己回来 */
+  var spinTimer = 0
+  function pauseAutoSpin(ms) {
+    autoSpin = false
+    if (spinTimer) clearTimeout(spinTimer)
+    spinTimer = setTimeout(function () { autoSpin = true }, ms || 4000)
+  }
+
     var lastX = 0, lastY = 0, downX = 0, downY = 0
     var el = renderer.domElement
 
     function onDown(e) {
-      dragging = true; autoSpin = false
+      dragging = true; pauseAutoSpin(6000)
       lastX = e.clientX; lastY = e.clientY; downX = e.clientX; downY = e.clientY
       el.style.cursor = 'grabbing'
     }
@@ -405,9 +413,9 @@
       camTheta -= dx * 0.005
       camPhi = Math.max(0.25, Math.min(Math.PI - 0.25, camPhi - dy * 0.005))
     }
-    function onUp() { dragging = false; el.style.cursor = 'grab' }
+    function onUp() { dragging = false; el.style.cursor = 'grab'; pauseAutoSpin(4000) }
     function onWheel(e) {
-      e.preventDefault(); autoSpin = false
+      e.preventDefault(); pauseAutoSpin(4000)
       camDist = Math.max(45, Math.min(260, camDist * (1 + Math.sign(e.deltaY) * 0.09)))
     }
     el.addEventListener('pointerdown', onDown)
@@ -462,7 +470,7 @@
     function frame() {
       raf = requestAnimationFrame(frame)
       var t = (performance.now() - t0) / 1000
-      if (autoSpin) camTheta += 0.0009
+      if (autoSpin && !dragging) camTheta += 0.0009
 
       camera.position.set(
         camDist * Math.sin(camPhi) * Math.cos(camTheta),

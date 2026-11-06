@@ -250,11 +250,19 @@
     /* ── 交互 ─────────────────────────────────────── */
     var el = renderer.domElement
     var dragging = false, lastX = 0, lastY = 0, autoSpin = true
+  /* 自动旋转的暂停与恢复：点击/拖动只是「暂时」停转，4 秒后自己回来 */
+  var spinTimer = 0
+  function pauseAutoSpin(ms) {
+    autoSpin = false
+    if (spinTimer) clearTimeout(spinTimer)
+    spinTimer = setTimeout(function () { autoSpin = true }, ms || 4000)
+  }
+
     var raycaster = new THREE.Raycaster()
     var pointer = new THREE.Vector2()
     var hovered = null
 
-    function onDown(e) { dragging = true; autoSpin = false; lastX = e.clientX; lastY = e.clientY }
+    function onDown(e) { dragging = true; pauseAutoSpin(6000); lastX = e.clientX; lastY = e.clientY }
     function onMove(e) {
       if (!dragging) return
       camTheta -= (e.clientX - lastX) * 0.005
@@ -262,7 +270,7 @@
       camPhi = Math.max(0.15, Math.min(Math.PI - 0.15, camPhi))
       lastX = e.clientX; lastY = e.clientY
     }
-    function onUp() { dragging = false }
+    function onUp() { dragging = false; pauseAutoSpin(4000) }
     function onWheel(e) {
       e.preventDefault()
       camDist *= (1 + Math.sign(e.deltaY) * 0.08)
@@ -354,7 +362,7 @@
       var gs = (14 + coreImp * 10) * pulse
       sunGlow.scale.set(gs, gs, 1)
 
-      if (autoSpin) camTheta += dt * 0.02
+      if (autoSpin && !dragging) camTheta += dt * 0.02
       camera.position.set(
         camDist * Math.sin(camPhi) * Math.sin(camTheta),
         camDist * Math.cos(camPhi) + 3,

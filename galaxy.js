@@ -402,10 +402,18 @@
     /* ── 交互 ───────────────────────────────────────────────── */
     var el = renderer.domElement
     var dragging = false, lastX = 0, lastY = 0, autoSpin = true
+  /* 自动旋转的暂停与恢复：点击/拖动只是「暂时」停转，4 秒后自己回来 */
+  var spinTimer = 0
+  function pauseAutoSpin(ms) {
+    autoSpin = false
+    if (spinTimer) clearTimeout(spinTimer)
+    spinTimer = setTimeout(function () { autoSpin = true }, ms || 4000)
+  }
+
     var mouseV = new THREE.Vector3()
     var hoveredData = null
 
-    function onDown(e) { dragging = true; autoSpin = false; lastX = e.clientX; lastY = e.clientY }
+    function onDown(e) { dragging = true; pauseAutoSpin(6000); lastX = e.clientX; lastY = e.clientY }
     function onMove(e) {
       if (!dragging) return
       camTheta -= (e.clientX - lastX) * 0.005
@@ -413,7 +421,7 @@
       camPhi = Math.max(0.16, Math.min(Math.PI - 0.16, camPhi))
       lastX = e.clientX; lastY = e.clientY
     }
-    function onUp() { dragging = false }
+    function onUp() { dragging = false; pauseAutoSpin(4000) }
     function onWheel(e) {
       e.preventDefault()
       camDist *= (1 + Math.sign(e.deltaY) * 0.08)
@@ -485,8 +493,8 @@
         }
       }
 
-      galaxy.rotation.y += dt * (autoSpin ? 0.072 : 0.008)    // 主盘
-      miniGroup.rotation.y += dt * (autoSpin ? 0.016 : 0.002) // 外围慢得多，形成层次
+      galaxy.rotation.y += dt * ((autoSpin && !dragging) ? 0.072 : 0.008)    // 主盘
+      miniGroup.rotation.y += dt * ((autoSpin && !dragging) ? 0.016 : 0.002) // 外围慢得多，形成层次
       miniMat.uniforms.uTime.value = clock.elapsedTime   // 小星系各自自转
       var pulse = 1 + Math.sin(clock.elapsedTime * 0.8) * 0.04
       core.scale.set(4.6 * pulse, 4.6 * pulse, 1)
