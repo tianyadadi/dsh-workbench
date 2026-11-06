@@ -63,13 +63,27 @@
     var camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 800)
     var camDist = 104, camTheta = 0.65, camPhi = 1.05
 
-    var renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+    var renderer
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+    } catch (err) {
+      container.innerHTML = '<div style="padding:24px;color:#7b8ea6;font-size:13px;line-height:1.9">' +
+        'WebGL 创建失败，关系图谱用不了。<br>试试换浏览器，或在设置里开启硬件加速。</div>'
+      return null
+    }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75))
     renderer.setSize(W, H)
     renderer.setClearColor(0x01040a, 0)
     container.appendChild(renderer.domElement)
     renderer.domElement.style.display = 'block'
     renderer.domElement.style.cursor = 'grab'
+    // 深色底：WebGL 上下文丢失时也不会露出刺眼的白板
+    renderer.domElement.style.background = '#03060c'
+    renderer.domElement.addEventListener('webglcontextlost', function (e) {
+      e.preventDefault()
+      container.innerHTML = '<div style="padding:24px;color:#e8b45a;font-size:13px;line-height:1.9">' +
+        'GPU 上下文丢了（显存吃紧或驱动重置）。切到别的视图再切回来即可重建。</div>'
+    })
 
     var root = new THREE.Group()
     scene.add(root)
@@ -136,6 +150,12 @@
         nodePos.push(x, y, z)
         nodeCol.push(col.r, col.g, col.b)
         pickable.push({ x: x, y: y, z: z, mem: list[i] })
+        // 拖尾：沿径向朝外放两个更暗的点，静止也一样有「光束」感
+        var ux = p.x / radius, uy = p.y / radius, uz = p.z / radius
+        nodePos.push(x + ux * 0.9, y + uy * 0.9, z + uz * 0.9)
+        nodeCol.push(col.r * 0.45, col.g * 0.45, col.b * 0.45)
+        nodePos.push(x + ux * 2.0, y + uy * 2.0, z + uz * 2.0)
+        nodeCol.push(col.r * 0.16, col.g * 0.16, col.b * 0.16)
       }
 
       /* 节点云 */
@@ -204,6 +224,38 @@
       root.add(halo)
       centersGroup.push(core, halo)
     })
+
+    /* ── 跨类型连线：同一个 tag 落在多个类型里 → 两个花心之间连一根 ──
+       完全由真实 tags 驱动：一条线只代表「这批记忆共享这个词」。 */
+    var tagKinds = {}
+    items.forEach(function (m) {
+      String(m.tags || '').split(',').forEach(function (t) {
+        t = t.trim()
+        if (!t) return
+        ;(tagKinds[t] = tagKinds[t] || {})[m.kind] = 1
+      })
+    })
+    var tagPos = [], tagCol = []
+    Object.keys(tagKinds).forEach(function (t) {
+      var ks = Object.keys(tagKinds[t]).filter(function (k) { return centers[k] })
+      if (ks.length < 2) return
+      var a = centers[ks[0]], b = centers[ks[1]]
+      tagPos.push(a.x, a.y, a.z, b.x, b.y, b.z)
+      var bright = Math.min(0.95, 0.3 + Object.keys(tagKinds[t]).length * 0.12)
+      tagCol.push(0.45 * bright, 1.0 * bright, 0.72 * bright,
+                  0.45 * bright, 1.0 * bright, 0.72 * bright)
+    })
+    if (tagPos.length) {
+      var tg = new THREE.BufferGeometry()
+      tg.setAttribute('position', new THREE.Float32BufferAttribute(tagPos, 3))
+      tg.setAttribute('color', new THREE.Float32BufferAttribute(tagCol, 3))
+      var tlines = new THREE.LineSegments(tg, new THREE.LineBasicMaterial({
+        vertexColors: true, transparent: true, opacity: 0.26,
+        blending: THREE.AdditiveBlending, depthWrite: false
+      }))
+      root.add(tlines)
+      lineGroups.push(tlines)
+    }
 
     /* ── 外围星尘：每条记忆一个长期层点，亮度 = activation ── */
     var dustPos = [], dustCol = []
