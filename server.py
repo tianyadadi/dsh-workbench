@@ -283,7 +283,7 @@ def scan_plugins() -> dict:
             "protected": b in PROTECTED_BUNDLES,
             "is_builtin": b.startswith("@deepseek-ai"),
         })
-    return {"items": items, "count": len(items)}
+    return {"items": items, "count": len(items), "doc": memory_doc()}
 
 
 def scan_skills() -> dict:
@@ -332,14 +332,37 @@ def scan_skills() -> dict:
                 if md.exists():
                     add(md, label)
 
-    return {"items": items, "count": len(items)}
+    return {"items": items, "count": len(items), "doc": memory_doc()}
+
+
+def memory_doc() -> dict:
+    """解析 MEMORY.md（人类可读的时间线快照），给太阳视图用。"""
+    md = MEMORY_DIR / "MEMORY.md"
+    if not md.exists():
+        return {"ok": False, "error": "MEMORY.md 不存在"}
+    try:
+        text = md.read_text(encoding="utf-8", errors="replace")
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    snaps = re.findall(r"^## 快照\s+(\d{8}-\d{6})\s*(?:（([^）]*)）)?", text, re.M)
+    entries = len(re.findall(r"^- \*\*\[", text, re.M))
+    return {
+        "ok": True,
+        "path": str(md),
+        "bytes": md.stat().st_size,
+        "snapshots": len(snaps),
+        "entries": entries,
+        "latest": snaps[-1][0] if snaps else "",
+        "latestNote": (snaps[-1][1] if snaps and len(snaps[-1]) > 1 else "") or "",
+        "recent": [{"t": a, "note": b or ""} for a, b in snaps[-6:]][::-1],
+    }
 
 
 def scan_memory() -> dict:
     db = MEMORY_DIR / "index.sqlite"
     items = []
     if not db.exists():
-        return {"items": [], "count": 0}
+        return {"items": [], "count": 0, "doc": memory_doc()}
     try:
         con = sqlite3.connect("file:%s?mode=ro" % db.as_posix(), uri=True)
         con.row_factory = sqlite3.Row
@@ -367,8 +390,8 @@ def scan_memory() -> dict:
             })
         con.close()
     except Exception as e:  # noqa: BLE001
-        return {"items": [], "count": 0, "error": str(e)}
-    return {"items": items, "count": len(items)}
+        return {"items": [], "count": 0, "error": str(e), "doc": memory_doc()}
+    return {"items": items, "count": len(items), "doc": memory_doc()}
 
 
 def scan_cost() -> dict:

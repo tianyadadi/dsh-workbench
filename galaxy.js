@@ -129,8 +129,10 @@
     renderer.domElement.style.display = 'block'
     renderer.domElement.style.cursor = 'grab'
 
-    var galaxy = new THREE.Group()
+    var galaxy = new THREE.Group()      // 主星系：转得快
     scene.add(galaxy)
+    var miniGroup = new THREE.Group()   // 外围小星系：几乎不动，各自自转
+    scene.add(miniGroup)
     var sprite = glowTexture()
 
     /* ── 记忆点 ─────────────────────────────────────────────── */
@@ -344,11 +346,11 @@
     })
 
     var pointsMini = new THREE.Points(miniGeo, miniMat)
-    galaxy.add(pointsMini)
+    miniGroup.add(pointsMini)
 
     // 星系中心微光（仍是普通 Points，不参与自转）
     var pointsMiniGlow = makePoints(mGlowCenter, mGlowColor, 2.2, 0.30)
-    galaxy.add(pointsMiniGlow)
+    miniGroup.add(pointsMiniGlow)
 
     /* ── 核球：四层叠加做出"最亮恒星"的光 ─────────────────────── */
     // 内核：中心接近纯白
@@ -483,7 +485,8 @@
         }
       }
 
-      galaxy.rotation.y += dt * (autoSpin ? 0.072 : 0.008)
+      galaxy.rotation.y += dt * (autoSpin ? 0.072 : 0.008)    // 主盘
+      miniGroup.rotation.y += dt * (autoSpin ? 0.016 : 0.002) // 外围慢得多，形成层次
       miniMat.uniforms.uTime.value = clock.elapsedTime   // 小星系各自自转
       var pulse = 1 + Math.sin(clock.elapsedTime * 0.8) * 0.04
       core.scale.set(4.6 * pulse, 4.6 * pulse, 1)
