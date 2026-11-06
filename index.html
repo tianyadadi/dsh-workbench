@@ -995,6 +995,7 @@ function renderOverview(d){
     <span class="chip">扫描于 ${esc(d.scanned_at)}</span>`;
   $('#main').innerHTML = `
   <h2>总览 <small>全部本地扫描，不联网</small></h2>
+  <div id="attention"></div>
   <div class="grid">
     <div class="card"><h3>插件 Bundle</h3><div class="big">${d.bundles}</div>
       <div class="sub">含 ${d.artcraft_found} 个 ArtCraft 应用可用</div></div>
@@ -1015,6 +1016,41 @@ function renderOverview(d){
     要加新面板：在 <span class="mono">server.py</span> 的 PANELS 里注册一行 (key, 名称, 扫描函数)，
     前端自动生成导航与页面。
   </div>`;
+  loadAttention();
+}
+
+/* ── 待人工：只列需要人处理的事，健康时不占位 ──────────────────
+   原则抄自 dsh-superagent（docs/000-philosophy、005-panel）：
+   Quiet by default —— 一切正常只留一行；问题必须可行动；计数=列表长度。 */
+async function loadAttention(){
+  const host = document.getElementById('attention');
+  if(!host) return;
+  let a;
+  try { a = await jget('/api/attention'); }
+  catch(e){ a = {error: String((e && e.message) || e)}; }
+  if(!a || a.error){
+    host.innerHTML = `<div style="color:var(--dim);font-size:12px">注意力检查没跑成：${esc((a && a.error) || '未知错误')}</div>`;
+    return;
+  }
+  if(!a.count){
+    host.innerHTML = `<div style="color:var(--dim);font-size:12px;padding:2px 0 10px">✓ 没有需要你处理的事 · ${a.checks} 项检查通过</div>`;
+    return;
+  }
+  const COLOR = {error:'#ff6b6b', warn:'#e8b45a'};
+  host.innerHTML = `
+    <div style="border-left:3px solid #e8b45a;background:rgba(224,163,58,.08);padding:12px 16px 10px;border-radius:0 10px 10px 0;margin-bottom:18px">
+      <div style="font-weight:600;color:#e8b45a;font-size:13px;margin-bottom:6px">⚠ 需要你处理 ${a.count} 项</div>
+      ${a.items.map(it=>`
+        <div style="display:flex;gap:10px;padding:5px 0;font-size:13px;line-height:1.7">
+          <span style="color:${COLOR[it.level]||'#e8b45a'};flex:none">${it.level==='error'?'●':'○'}</span>
+          <div style="min-width:0">
+            <div>${esc(it.title)}</div>
+            ${it.detail?`<div style="color:var(--dim);font-size:12px">${esc(it.detail)}</div>`:''}
+            ${it.action?`<div style="color:var(--accent);font-size:12px">→ ${esc(it.action)}</div>`:''}
+          </div>
+        </div>`).join('')}
+      <div style="color:var(--dim);font-size:11px;margin-top:6px">共 ${a.checks} 项检查 · ${esc(a.scanned_at)}</div>
+    </div>`;
 }
 
 /* ---------- 插件 ---------- */

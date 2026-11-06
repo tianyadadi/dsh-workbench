@@ -1,5 +1,32 @@
 # 更新日志
 
+## 2026-11-06（夜）— 「待人工」区块（借 dsh-superagent 的设计）
+
+读了 DeepSeek 官方开源的 `deepseek-ai/dsh-superagent-prototype`，它面板里有一句原则很硬：
+
+> **A panel that shows only what needs a person. It lists first what waits for a person. A healthy state takes no space.**
+
+照这条把工作台概览改了：**只列需要人处理的事，健康状态不占位**。
+
+### 新增
+
+**`GET /api/attention` + 概览顶部「⚠ 需要你处理 N 项」**
+- 7 项检查：配置路径（modules / memory / artcraft / workarea）、插件是否"在加载列表但目录不存在"、
+  HANDOFF.md 是否超过 450 行（和 `handoff.py` 同一阈值）、记忆库 `index.sqlite` 是否可读
+- 每条问题给 `level`（error/warn）+ `detail` + **`action`（下一步做什么）**
+- 一切正常时只显示一行：`✓ 没有需要你处理的事 · 7 项检查通过`
+- 计数严格等于列表长度，不虚报
+
+### 踩到的坑
+
+第一版把 `@deepseek-ai/dsh-base` / `dsh-web-app` 报成"目录不存在"——它们是 DSH 自带的核心包，
+本来就不在 `node_modules` 里。这种"不能关也修不了"的假问题，正好违反它自己那条
+"Problems must be actionable"，所以加了 `PROTECTED_BUNDLES` 跳过。
+
+### 顺带
+
+- README 特性表、面板说明同步
+
 ## 2026-11-06（傍晚）— 文档占比饼图
 
 需求原话：「在工作台记忆设置一个饼状图，每天文档内容占比，每月文档占比，像记忆星图那样可以切换看的，不跑 token，只访问本地」。

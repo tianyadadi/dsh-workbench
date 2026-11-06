@@ -500,6 +500,73 @@ def scan_docstats() -> dict:
     }
 
 
+# ---------------------------------------------------------------- 待人工（注意力面板）
+
+HANDOFF_LINE_LIMIT = 450
+
+
+def scan_attention() -> dict:
+    """只列「需要人处理」的事，健康项不占位。
+
+    这条原则抄自 dsh-superagent 的 000-philosophy / 005-panel：
+    * Quiet by default —— 一切正常时只留一行灰字，不摆卡片。
+    * 问题必须可行动 —— 每条都给出「下一步做什么」。
+    * 计数等于列表长度 —— 不虚报。
+    """
+    items = []
+    checks = 0
+
+    def issue(level, title, detail="", action=""):
+        items.append({"level": level, "title": title, "detail": detail, "action": action})
+
+    # 1) 配置里的关键路径
+    for label, p, key in (("插件目录", MODULES, "modules_dir"),
+                          ("记忆库", MEMORY_DIR, "memory_dir"),
+                          ("ArtCraft", ART_DIR, "artcraft_dir"),
+                          ("交接文档", WORKAREA, "workarea_dir")):
+        checks += 1
+        if not p.exists():
+            issue("error", f"{label}路径不存在", str(p), f"改 config.json 里的 {key}")
+
+    # 2) 加载列表里有、盘上没有 —— 典型「装了一半」
+    #    核心包（dsh-base / dsh-web-app）自带在 DSH 里，不在 node_modules，必须跳过，
+    #    否则每天都在报一条「不能关也修不了」的假问题。
+    bundles = load_json(PROFILE / "package.json", {}).get("dsh", {}).get("profile", {}).get("bundles", [])
+    checks += 1
+    missing = [b for b in bundles
+               if b not in PROTECTED_BUNDLES and not (MODULES / b).exists()]
+    if missing:
+        issue("error", f"{len(missing)} 个插件在加载列表里但目录不存在",
+              "、".join(missing[:3]) + ("…" if len(missing) > 3 else ""),
+              "到「插件」面板关掉或重装")
+
+    # 3) 交接文档体量（超了就提醒归档，和 handoff.py 同一阈值）
+    h = WORKAREA / "HANDOFF.md"
+    if h.exists():
+        checks += 1
+        try:
+            n = len(h.read_text(encoding="utf-8", errors="replace").splitlines())
+            if n > HANDOFF_LINE_LIMIT:
+                issue("warn", f"HANDOFF.md 已 {n} 行（上限 {HANDOFF_LINE_LIMIT}）",
+                      "旧的一次性事项该搬进 archive/ 了",
+                      "在 workarea 里跑 python handoff.py archive")
+        except Exception:  # noqa: BLE001
+            issue("warn", "HANDOFF.md 读不出来", str(h), "检查文件权限或编码")
+
+    # 4) 记忆库
+    checks += 1
+    if not (MEMORY_DIR / "index.sqlite").exists():
+        issue("warn", "记忆库 index.sqlite 不存在", "记忆面板会是空的", "跑 mem.cmd init")
+
+    return {
+        "items": items,
+        "count": len(items),
+        "checks": checks,
+        "ok": not items,
+        "scanned_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
 def scan_cost() -> dict:
     files = sorted(SESSIONS.glob("session-*.json"), key=os.path.getmtime) if SESSIONS.exists() else []
     if not files:
@@ -928,6 +995,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/docstats":
                 self._json(scan_docstats())
+                return
+            if path == "/api/attention":
+                self._json(scan_attention())
                 return
             if path.startswith("/api/"):
                 key = path[5:]
