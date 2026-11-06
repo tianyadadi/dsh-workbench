@@ -1,11 +1,11 @@
-/* 关系图谱视图 —— 每类记忆一朵「发光星云花」
+/* 关系图谱视图 —— 外层戴森球包裹，每条记忆一条连线
  *
- * 映射规则（遵守「可视化必须对应真实数据」）：
- *   · 一朵花 = 一个记忆类型（decision / pitfall / preference / context / todo）
- *   · 花心 = 该类聚合点，亮度与大小跟条数走
- *   · 一个光点 = 一条真实记忆，半径由 importance 决定，颜色 = 类型
- *   · 一根线 = 这条记忆与它所属类心的关系；节点之间的线 = Fibonacci 球面上相邻的两条
- *   · 外围星尘 = 每条记忆再投影一个「长期层」点，亮度 = activation
+ * 映射规则（可视化必须对应真实数据）：
+ *   · 一条记忆 = 内层一个光点（落在所属类型的花上）+ 外层球壳一个光点
+ *   · 内外两层之间那根线 = 「同一条记忆的两层投影」，143 条记忆 = 143 根放射缆
+ *   · 一朵花 = 一个记忆类型；花心亮度跟条数走；每朵花各自自转
+ *   · 球壳网格 = 相邻记忆之间的近邻关系（Fibonacci 排序相邻）
+ *   · 位置/大小跟 importance 走，亮度跟 activation 走
  * 零外部依赖，只用本地 three.js。
  */
 (function () {
@@ -16,15 +16,20 @@
     decision: '#4dd0e1', pitfall: '#ff8a65', preference: '#c792ea',
     context: '#9ccc65', todo: '#ffd54f'
   }
+  var SHELL_R = 58
+  var SPIN = {
+    decision: 0.055, pitfall: -0.042, preference: 0.075,
+    context: -0.065, todo: 0.09
+  }
 
   function hexToRgb(h) {
-    var s = h.replace('#', '')
+    var s = String(h || '').replace('#', '')
     if (s.length === 3) s = s[0] + s[0] + s[1] + s[1] + s[2] + s[2]
     var n = parseInt(s, 16)
+    if (!isFinite(n)) return [150, 170, 190]
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
   }
 
-  /* 圆形柔光贴图 */
   function glowTexture() {
     var s = 128
     var c = document.createElement('canvas')
@@ -42,7 +47,7 @@
     return t
   }
 
-  /* Fibonacci 球面：均匀撒点 */
+  /* Fibonacci 球面：均匀撒点，索引稳定（同一条记忆永远落同一位置） */
   function spherePoint(i, n, radius) {
     var ga = Math.PI * (3 - Math.sqrt(5))
     var y = 1 - (i / Math.max(1, n - 1)) * 2
@@ -60,8 +65,8 @@
     var H = container.clientHeight || 500
 
     var scene = new THREE.Scene()
-    var camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 800)
-    var camDist = 104, camTheta = 0.65, camPhi = 1.05
+    var camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 900)
+    var camDist = 152, camTheta = 0.7, camPhi = 1.08
 
     var renderer
     try {
@@ -77,7 +82,6 @@
     container.appendChild(renderer.domElement)
     renderer.domElement.style.display = 'block'
     renderer.domElement.style.cursor = 'grab'
-    // 深色底：WebGL 上下文丢失时也不会露出刺眼的白板
     renderer.domElement.style.background = '#03060c'
     renderer.domElement.addEventListener('webglcontextlost', function (e) {
       e.preventDefault()
@@ -89,6 +93,14 @@
     scene.add(root)
     var tex = glowTexture()
 
+    function colorOf(k) {
+      return (colorMap && colorMap[k]) || FALLBACK[k] || '#9aa7b4'
+    }
+    function rgbOf(k) {
+      var c = hexToRgb(colorOf(k))
+      return [c[0] / 255, c[1] / 255, c[2] / 255]
+    }
+
     /* ── 分桶 ─────────────────────────────────────────────── */
     var buckets = {}
     items.forEach(function (m) {
@@ -97,12 +109,8 @@
     })
     var kinds = KIND_ORDER.filter(function (k) { return buckets[k] && buckets[k].length })
 
-    function colorOf(k) {
-      return (colorMap && colorMap[k]) || FALLBACK[k] || '#9aa7b4'
-    }
-
-    /* 花心摆位：大圆上一圈，每朵花的大小按条数走 */
-    var MAXR = kinds.length > 1 ? 20 : 0
+    /* 花心摆位：比球壳小很多，保证被完全包裹 */
+    var MAXR = kinds.length > 1 ? 15 : 0
     var total = items.length || 1
     var centers = {}
     kinds.forEach(function (k, i) {
@@ -110,173 +118,277 @@
       var share = buckets[k].length / total
       centers[k] = new THREE.Vector3(
         Math.cos(ang) * MAXR * (0.55 + share * 1.6),
-        Math.sin(i * 1.7) * 2.5,
+        Math.sin(i * 1.7) * 2,
         Math.sin(ang) * MAXR * (0.55 + share * 1.6)
       )
     })
 
-    var texCache = {}
-    function lineMat() {
-      return new THREE.LineBasicMaterial({
-        vertexColors: true, transparent: true, opacity: 0.3,
+    var lineMats = []
+    function lineMat(op) {
+      var m = new THREE.LineBasicMaterial({
+        vertexColors: true, transparent: true, opacity: op,
         blending: THREE.AdditiveBlending, depthWrite: false
       })
+      lineMats.push(m)
+      return m
     }
 
-    var lineGroups = []
-    var nodeLayers = []
-    var centersGroup = []
-    var pickable = []   // {pos, mem}
+    var flowers = []
+    var pickables = []
+    var nodeOf = {}
 
+    /* ── 内层：每类一朵花（各自自转） ─────────────────────── */
     kinds.forEach(function (kind) {
       var list = buckets[kind]
-      var c = centers[kind]
-      var rgb = hexToRgb(colorOf(kind))
-      var radius = 7 + Math.min(6, list.length * 0.08)
-      var col = new THREE.Color(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255)
-
-      var nodePos = []
-      var nodeCol = []
+      var rgb = rgbOf(kind)
+      var col = new THREE.Color(rgb[0], rgb[1], rgb[2])
       var n = list.length
+      var radius = 9 + Math.min(8, n * 0.1)
 
-      /* 光点 */
+      var grp = new THREE.Group()
+      grp.position.copy(centers[kind])
+      root.add(grp)
+
+      var nodePos = [], nodeCol = []
       for (var i = 0; i < n; i++) {
         var p = spherePoint(i, n, radius)
         var imp = Math.max(0.2, Math.min(1, list[i].importance || 0.5))
-        var s = radius * (1 - imp * 0.35)   // 越重要越靠里
-        var x = c.x + p.x * (s / radius)
-        var y = c.y + p.y * (s / radius)
-        var z = c.z + p.z * (s / radius)
-        nodePos.push(x, y, z)
+        var s = radius * (1 - imp * 0.35)
+        var lx = p.x * (s / radius), ly = p.y * (s / radius), lz = p.z * (s / radius)
+        nodePos.push(lx, ly, lz)
         nodeCol.push(col.r, col.g, col.b)
-        pickable.push({ x: x, y: y, z: z, mem: list[i] })
-        // 拖尾：沿径向朝外放两个更暗的点，静止也一样有「光束」感
+
+        var w = centers[kind].clone()
+        w.x += lx; w.y += ly; w.z += lz
+        nodeOf[list[i].id] = { x: w.x, y: w.y, z: w.z }
+        pickables.push({ grp: grp, local: new THREE.Vector3(lx, ly, lz), mem: list[i] })
+
         var ux = p.x / radius, uy = p.y / radius, uz = p.z / radius
-        nodePos.push(x + ux * 0.9, y + uy * 0.9, z + uz * 0.9)
-        nodeCol.push(col.r * 0.45, col.g * 0.45, col.b * 0.45)
-        nodePos.push(x + ux * 2.0, y + uy * 2.0, z + uz * 2.0)
-        nodeCol.push(col.r * 0.16, col.g * 0.16, col.b * 0.16)
+        nodePos.push(lx + ux * 0.9, ly + uy * 0.9, lz + uz * 0.9)
+        nodeCol.push(col.r * 0.24, col.g * 0.24, col.b * 0.24)
+        nodePos.push(lx + ux * 2.0, ly + uy * 2.0, lz + uz * 2.0)
+        nodeCol.push(col.r * 0.06, col.g * 0.06, col.b * 0.06)
       }
 
-      /* 节点云 */
       var pg = new THREE.BufferGeometry()
       pg.setAttribute('position', new THREE.Float32BufferAttribute(nodePos, 3))
       pg.setAttribute('color', new THREE.Float32BufferAttribute(nodeCol, 3))
-      var pm = new THREE.PointsMaterial({
-        size: 1.7, map: tex, vertexColors: true, transparent: true,
-        opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false,
-        sizeAttenuation: true
-      })
-      var pts = new THREE.Points(pg, pm)
-      root.add(pts)
-      nodeLayers.push(pts)
+      grp.add(new THREE.Points(pg, new THREE.PointsMaterial({
+        size: 1.8, map: tex, vertexColors: true, transparent: true,
+        opacity: 0.92, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
+      })))
 
-      /* 外层大光晕点（制造 bloom 感） */
       var pg2 = new THREE.BufferGeometry()
       pg2.setAttribute('position', new THREE.Float32BufferAttribute(nodePos, 3))
       pg2.setAttribute('color', new THREE.Float32BufferAttribute(nodeCol, 3))
-      var pm2 = new THREE.PointsMaterial({
-        size: 5.2, map: tex, vertexColors: true, transparent: true,
-        opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false,
-        sizeAttenuation: true
-      })
-      var pts2 = new THREE.Points(pg2, pm2)
-      root.add(pts2)
-      nodeLayers.push(pts2)
+      grp.add(new THREE.Points(pg2, new THREE.PointsMaterial({
+        size: 3.4, map: tex, vertexColors: true, transparent: true,
+        opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
+      })))
 
-      /* 放射线：花心 → 每个节点 */
       var lpos = [], lcol = []
+      var dim = 0.42
+      function link(a, b) {
+        if (a === b) return
+        lpos.push(nodePos[a * 3], nodePos[a * 3 + 1], nodePos[a * 3 + 2],
+                  nodePos[b * 3], nodePos[b * 3 + 1], nodePos[b * 3 + 2])
+        lcol.push(col.r * dim, col.g * dim, col.b * dim)
+        lcol.push(col.r * dim, col.g * dim, col.b * dim)
+      }
       for (var j = 0; j < n; j++) {
-        lpos.push(c.x, c.y, c.z, nodePos[j * 3], nodePos[j * 3 + 1], nodePos[j * 3 + 2])
-        lcol.push(col.r * 0.85, col.g * 0.85, col.b * 0.85)
+        lpos.push(0, 0, 0, nodePos[j * 3], nodePos[j * 3 + 1], nodePos[j * 3 + 2])
+        lcol.push(col.r * 0.8, col.g * 0.8, col.b * 0.8)
         lcol.push(col.r, col.g, col.b)
       }
-      /* 节点之间的近邻线：Fibonacci 顺序上连下一个，形成球面网格 */
-      for (var q = 0; q < n && n >= 8; q += 2) {
-        var r2 = (q + 2) % n
-        lpos.push(nodePos[q * 3], nodePos[q * 3 + 1], nodePos[q * 3 + 2],
-                  nodePos[r2 * 3], nodePos[r2 * 3 + 1], nodePos[r2 * 3 + 2])
-        lcol.push(col.r * 0.55, col.g * 0.55, col.b * 0.55)
-        lcol.push(col.r * 0.55, col.g * 0.55, col.b * 0.55)
+      if (n >= 4) {
+        var seenL = {}
+        function linkOnce(a, b) {
+          var key = a < b ? a + '_' + b : b + '_' + a
+          if (seenL[key]) return
+          seenL[key] = 1
+          link(a, b)
+        }
+        // 每点连最近的 5 个邻居（球面局部坐标里算），比索引相邻更像网
+        var KN2 = n > 40 ? 3 : 2
+        for (var q = 0; q < n; q++) {
+          var cand = []
+          for (var w2 = 0; w2 < n; w2++) {
+            if (w2 === q) continue
+            var dx2 = nodePos[q * 3] - nodePos[w2 * 3]
+            var dy2 = nodePos[q * 3 + 1] - nodePos[w2 * 3 + 1]
+            var dz2 = nodePos[q * 3 + 2] - nodePos[w2 * 3 + 2]
+            cand.push([dx2 * dx2 + dy2 * dy2 + dz2 * dz2, w2])
+          }
+          cand.sort(function (x, y) { return x[0] - y[0] })
+          for (var k2 = 0; k2 < Math.min(KN2, cand.length); k2++) linkOnce(q, cand[k2][1])
+          linkOnce(q, (q + 1) % n)   // 索引相邻再补一条
+        }
       }
       var lg = new THREE.BufferGeometry()
       lg.setAttribute('position', new THREE.Float32BufferAttribute(lpos, 3))
       lg.setAttribute('color', new THREE.Float32BufferAttribute(lcol, 3))
-      var lines = new THREE.LineSegments(lg, lineMat())
-      root.add(lines)
-      lineGroups.push(lines)
+      grp.add(new THREE.LineSegments(lg, lineMat(0.085)))
 
-      /* 花心：核 + 大光晕 */
       var core = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: tex, color: new THREE.Color(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255),
-        transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false
+        map: tex, color: new THREE.Color(rgb[0], rgb[1], rgb[2]),
+        transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false
       }))
-      core.position.copy(c)
-      core.scale.setScalar(3.2 + Math.min(6, n * 0.05))
-      root.add(core)
+      core.scale.setScalar(3.0 + Math.min(5, n * 0.05))
+      grp.add(core)
 
       var halo = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: tex, color: new THREE.Color(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255),
-        transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false
+        map: tex, color: new THREE.Color(rgb[0], rgb[1], rgb[2]),
+        transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false
       }))
-      halo.position.copy(c)
-      halo.scale.setScalar(16 + Math.min(14, n * 0.16))
-      root.add(halo)
-      centersGroup.push(core, halo)
+      halo.scale.setScalar(7 + Math.min(4, n * 0.05))
+      grp.add(halo)
+
+      flowers.push({ grp: grp, speed: SPIN[kind] || 0.05, kind: kind })
     })
 
-    /* ── 跨类型连线：同一个 tag 落在多个类型里 → 两个花心之间连一根 ──
-       完全由真实 tags 驱动：一条线只代表「这批记忆共享这个词」。 */
-    var tagKinds = {}
-    items.forEach(function (m) {
-      String(m.tags || '').split(',').forEach(function (t) {
-        t = t.trim()
-        if (!t) return
-        ;(tagKinds[t] = tagKinds[t] || {})[m.kind] = 1
-      })
+    /* ── 外层戴森球：每条记忆一个点 + 相邻织网 ───────────── */
+    var shellPos = [], shellCol = [], shellW = []
+    items.forEach(function (m, i) {
+      var imp = Math.max(0.2, Math.min(1, m.importance || 0.5))
+      var act = Math.max(0.3, Math.min(1, m.activation || 0.7))
+      var r = SHELL_R + (1 - imp) * 9
+      var p = spherePoint(i, items.length, r)
+      var rgb = rgbOf(m.kind)
+      shellPos.push(p.x, p.y, p.z)
+      shellCol.push(rgb[0] * act * 0.55, rgb[1] * act * 0.55, rgb[2] * act * 0.55)
+      shellW.push({ x: p.x, y: p.y, z: p.z, rgb: rgb, kind: m.kind })
+      pickables.push({ grp: null, local: new THREE.Vector3(p.x, p.y, p.z), mem: m })
     })
-    var tagPos = [], tagCol = []
-    Object.keys(tagKinds).forEach(function (t) {
-      var ks = Object.keys(tagKinds[t]).filter(function (k) { return centers[k] })
-      if (ks.length < 2) return
-      var a = centers[ks[0]], b = centers[ks[1]]
-      tagPos.push(a.x, a.y, a.z, b.x, b.y, b.z)
-      var bright = Math.min(0.95, 0.3 + Object.keys(tagKinds[t]).length * 0.12)
-      tagCol.push(0.45 * bright, 1.0 * bright, 0.72 * bright,
-                  0.45 * bright, 1.0 * bright, 0.72 * bright)
-    })
-    if (tagPos.length) {
-      var tg = new THREE.BufferGeometry()
-      tg.setAttribute('position', new THREE.Float32BufferAttribute(tagPos, 3))
-      tg.setAttribute('color', new THREE.Float32BufferAttribute(tagCol, 3))
-      var tlines = new THREE.LineSegments(tg, new THREE.LineBasicMaterial({
-        vertexColors: true, transparent: true, opacity: 0.26,
+
+    var sGeo = new THREE.BufferGeometry()
+    sGeo.setAttribute('position', new THREE.Float32BufferAttribute(shellPos, 3))
+    sGeo.setAttribute('color', new THREE.Float32BufferAttribute(shellCol, 3))
+    var shellPts = new THREE.Points(sGeo, new THREE.PointsMaterial({
+      size: 2.0, map: tex, vertexColors: true, transparent: true,
+      opacity: 1.0, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
+    }))
+    root.add(shellPts)
+
+    // 球壳点再叠一层柔光，让每个点都「发亮」
+    var sGlowGeo = new THREE.BufferGeometry()
+    sGlowGeo.setAttribute('position', new THREE.Float32BufferAttribute(shellPos, 3))
+    sGlowGeo.setAttribute('color', new THREE.Float32BufferAttribute(shellCol, 3))
+    root.add(new THREE.Points(sGlowGeo, new THREE.PointsMaterial({
+      size: 5.2, map: tex, vertexColors: true, transparent: true,
+      opacity: 0.10, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
+    })))
+
+    var gl = [], gc = []
+    var seenEdge = {}
+    function shellLink(a, b) {
+      var A = shellW[a], B = shellW[b]
+      if (!A || !B) return
+      var key = (a < b ? a + '-' + b : b + '-' + a)
+      if (seenEdge[key]) return
+      seenEdge[key] = 1
+      gl.push(A.x, A.y, A.z, B.x, B.y, B.z)
+      gc.push(A.rgb[0] * 0.42, A.rgb[1] * 0.42, A.rgb[2] * 0.42)
+      gc.push(B.rgb[0] * 0.42, B.rgb[1] * 0.42, B.rgb[2] * 0.42)
+    }
+    var N = items.length
+    // 每个球壳点连最近的 K 个邻居 → 一层真正的网格壳
+    var KN = N > 90 ? 9 : 5
+    for (var si = 0; si < N; si++) {
+      var near = []
+      for (var sj = 0; sj < N; sj++) {
+        if (sj === si) continue
+        var A2 = shellW[si], B2 = shellW[sj]
+        var dx = A2.x - B2.x, dy = A2.y - B2.y, dz = A2.z - B2.z
+        near.push([dx * dx + dy * dy + dz * dz, sj])
+      }
+      near.sort(function (x, y) { return x[0] - y[0] })
+      for (var kk = 0; kk < Math.min(KN, near.length); kk++) shellLink(si, near[kk][1])
+      // 再补一圈索引相邻：Fibonacci 序列本身是螺旋，这条能把「经线」方向也串起来
+      shellLink(si, (si + 1) % N)
+    }
+    var sLines = new THREE.BufferGeometry()
+    sLines.setAttribute('position', new THREE.Float32BufferAttribute(gl, 3))
+    sLines.setAttribute('color', new THREE.Float32BufferAttribute(gc, 3))
+    root.add(new THREE.LineSegments(sLines, lineMat(0.145)))
+
+    /* 球体轮廓：三条大圆，让「球壳」有个看得见的边 */
+    function bigCircle(plane, radius, opacity) {
+      var pts = []
+      for (var i = 0; i <= 160; i++) {
+        var a = i / 160 * Math.PI * 2
+        if (plane === 'xz') pts.push(new THREE.Vector3(Math.cos(a) * radius, 0, Math.sin(a) * radius))
+        else if (plane === 'xy') pts.push(new THREE.Vector3(Math.cos(a) * radius, Math.sin(a) * radius, 0))
+        else pts.push(new THREE.Vector3(0, Math.cos(a) * radius, Math.sin(a) * radius))
+      }
+      var g = new THREE.BufferGeometry().setFromPoints(pts)
+      return new THREE.Line(g, new THREE.LineBasicMaterial({
+        color: 0x4dd0e1, transparent: true, opacity: opacity,
         blending: THREE.AdditiveBlending, depthWrite: false
       }))
-      root.add(tlines)
-      lineGroups.push(tlines)
+    }
+    var ringMat = bigCircle('xz', SHELL_R + 4, 0.16)
+    root.add(ringMat)
+    root.add(bigCircle('xy', SHELL_R + 4, 0.09))
+    root.add(bigCircle('yz', SHELL_R + 4, 0.09))
+
+    /* 内外连线：球壳点 → 这条记忆自己在花里的那个点（不是都拉到花心，
+       这样 143 条缆线是散开的，不会汇成一个漏斗）。挂进花 group 里跟着转。 */
+    var flowerByKind = {}
+    flowers.forEach(function (f) { flowerByKind[f.kind] = f })
+    var byKindIdx = {}
+    items.forEach(function (m, i) { (byKindIdx[m.kind] = byKindIdx[m.kind] || []).push(i) })
+    Object.keys(byKindIdx).forEach(function (kind) {
+      var f = flowerByKind[kind]
+      if (!f) return
+      var c = centers[kind]
+      var lp = [], lc = []
+      byKindIdx[kind].forEach(function (idx) {
+        var w = shellW[idx]
+        var mem = items[idx]
+        var nd = nodeOf[mem.id]
+        if (!w || !nd) return
+        lp.push(w.x - c.x, w.y - c.y, w.z - c.z)
+        lp.push(nd.x - c.x, nd.y - c.y, nd.z - c.z)
+        var rgb = w.rgb
+        lc.push(rgb[0] * 0.55, rgb[1] * 0.55, rgb[2] * 0.55)
+        lc.push(rgb[0] * 0.28, rgb[1] * 0.28, rgb[2] * 0.28)
+      })
+      if (!lp.length) return
+      var g2 = new THREE.BufferGeometry()
+      g2.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3))
+      g2.setAttribute('color', new THREE.Float32BufferAttribute(lc, 3))
+      f.grp.add(new THREE.LineSegments(g2, lineMat(0.11)))
+    })
+
+    /* 同 tag 的记忆之间再串一层（真实关联） */
+    var tagMems = {}
+    items.forEach(function (m) {
+      String(m.tags || '').split(',').forEach(function (tg) {
+        tg = tg.trim()
+        if (!tg) return
+        ;(tagMems[tg] = tagMems[tg] || []).push(m)
+      })
+    })
+    var tl = [], tc = []
+    Object.keys(tagMems).forEach(function (tg) {
+      var ms = tagMems[tg].filter(function (m) { return nodeOf[m.id] })
+      if (ms.length < 2) return
+      var lim = Math.min(ms.length, 6)
+      for (var i = 0; i < lim; i++) {
+        var A = nodeOf[ms[i].id], B = nodeOf[ms[(i + 1) % lim].id]
+        tl.push(A.x, A.y, A.z, B.x, B.y, B.z)
+        var br = Math.min(1, 0.45 + ms.length * 0.06)
+        tc.push(0.40 * br, 0.92 * br, 0.66 * br, 0.40 * br, 0.92 * br, 0.66 * br)
+      }
+    })
+    if (tl.length) {
+      var tGeo = new THREE.BufferGeometry()
+      tGeo.setAttribute('position', new THREE.Float32BufferAttribute(tl, 3))
+      tGeo.setAttribute('color', new THREE.Float32BufferAttribute(tc, 3))
+      root.add(new THREE.LineSegments(tGeo, lineMat(0.10)))
     }
 
-    /* ── 外围星尘：每条记忆一个长期层点，亮度 = activation ── */
-    var dustPos = [], dustCol = []
-    var DUST_R = 62
-    items.forEach(function (m, i) {
-      var p = spherePoint(i * 2 + 1, items.length * 2, DUST_R * (0.9 + Math.random() * 0.22))
-      var a = Math.max(0.25, Math.min(1, m.activation || 0.5))
-      var base = hexToRgb(colorOf(m.kind) || '#ffffff')
-      dustPos.push(p.x, p.y * 0.62, p.z)
-      dustCol.push(base[0] / 255 * a, base[1] / 255 * a, base[2] / 255 * a)
-    })
-    var dg = new THREE.BufferGeometry()
-    dg.setAttribute('position', new THREE.Float32BufferAttribute(dustPos, 3))
-    dg.setAttribute('color', new THREE.Float32BufferAttribute(dustCol, 3))
-    var dust = new THREE.Points(dg, new THREE.PointsMaterial({
-      size: 1.1, map: tex, vertexColors: true, transparent: true, opacity: 0.55,
-      blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
-    }))
-    root.add(dust)
-
-    /* ── 交互：拖拽旋转 / 滚轮缩放 / 点击拾取 ─────────────── */
+    /* ── 交互 ─────────────────────────────────────────────── */
     var dragging = false, autoSpin = true
     var lastX = 0, lastY = 0, downX = 0, downY = 0
     var el = renderer.domElement
@@ -295,45 +407,62 @@
     }
     function onUp() { dragging = false; el.style.cursor = 'grab' }
     function onWheel(e) {
-      e.preventDefault()
-      autoSpin = false
-      camDist = Math.max(28, Math.min(180, camDist * (1 + Math.sign(e.deltaY) * 0.09)))
+      e.preventDefault(); autoSpin = false
+      camDist = Math.max(45, Math.min(260, camDist * (1 + Math.sign(e.deltaY) * 0.09)))
     }
     el.addEventListener('pointerdown', onDown)
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
     el.addEventListener('wheel', onWheel, { passive: false })
 
-    /* 点击拾取：投影到屏幕后找最近的点 */
-    var raycaster = new THREE.Raycaster()
     var ndc = new THREE.Vector2()
     function onClick(e) {
       if (Math.abs(e.clientX - downX) > 4 || Math.abs(e.clientY - downY) > 4) return
       var rect = el.getBoundingClientRect()
       ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
       ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
-      raycaster.setFromCamera(ndc, camera)
       var best = null, bestD = 1e9
       var v = new THREE.Vector3()
-      pickable.forEach(function (p) {
-        v.set(p.x, p.y, p.z).project(camera)
+      pickables.forEach(function (pp) {
+        v.copy(pp.local)
+        if (pp.grp) { v.applyMatrix4(pp.grp.matrixWorld) }
+        v.project(camera)
         if (v.z > 1) return
         var sx = (v.x + 1) / 2 * rect.width
         var sy = (-v.y + 1) / 2 * rect.height
         var d = Math.hypot(sx - (e.clientX - rect.left), sy - (e.clientY - rect.top))
-        if (d < bestD) { bestD = d; best = p }
+        if (d < bestD) { bestD = d; best = pp }
       })
-      if (best && bestD < 22 && onPick) onPick(best.mem)
+      if (best && bestD < 26 && onPick) onPick(best.mem)
     }
     el.addEventListener('click', onClick)
 
-    /* ── 渲染循环 ─────────────────────────────────────────── */
+    /* 悬停：靠近任一光点时光标变手型，让「这个点能点」有反馈 */
+    var hv = new THREE.Vector3()
+    el.addEventListener('mousemove', function (e) {
+      if (dragging) return
+      var rect = el.getBoundingClientRect()
+      var bestD = 1e9
+      pickables.forEach(function (pp) {
+        hv.copy(pp.local)
+        if (pp.grp) hv.applyMatrix4(pp.grp.matrixWorld)
+        hv.project(camera)
+        if (hv.z > 1) return
+        var sx = (hv.x + 1) / 2 * rect.width
+        var sy = (-hv.y + 1) / 2 * rect.height
+        var d = Math.hypot(sx - (e.clientX - rect.left), sy - (e.clientY - rect.top))
+        if (d < bestD) bestD = d
+      })
+      el.style.cursor = bestD < 26 ? 'pointer' : (dragging ? 'grabbing' : 'grab')
+    })
+
+    /* ── 渲染 ─────────────────────────────────────────────── */
     var raf = 0
     var t0 = performance.now()
     function frame() {
       raf = requestAnimationFrame(frame)
       var t = (performance.now() - t0) / 1000
-      if (autoSpin) camTheta += 0.0011
+      if (autoSpin) camTheta += 0.0009
 
       camera.position.set(
         camDist * Math.sin(camPhi) * Math.cos(camTheta),
@@ -342,16 +471,13 @@
       )
       camera.lookAt(0, 0, 0)
 
-      /* 花心轻微呼吸 + 节点层各自慢转 */
-      centersGroup.forEach(function (o, i) {
-        var k = 1 + Math.sin(t * 1.4 + i) * 0.05
-        o.scale.setScalar(o.userData.base || (o.scale.x / k))
-        o.userData.base = o.scale.x / k
-      })
-      nodeLayers.forEach(function (p, i) {
-        p.rotation.y = t * (i % 2 ? -0.03 : 0.03)
-      })
-      root.rotation.y = Math.sin(t * 0.12) * 0.06
+      // 每朵花各转各的（速度不同、方向不同）
+      for (var i = 0; i < flowers.length; i++) {
+        flowers[i].grp.rotation.y = t * flowers[i].speed
+        flowers[i].grp.rotation.x = Math.sin(t * 0.25 + i) * 0.06
+      }
+      // 球壳极慢反向自转，做出「包裹」的层次
+      shellPts.rotation.y = -t * 0.008
 
       renderer.render(scene, camera)
     }
@@ -374,11 +500,13 @@
         el.removeEventListener('pointerdown', onDown)
         el.removeEventListener('wheel', onWheel)
         el.removeEventListener('click', onClick)
-        lineGroups.forEach(function (l) { l.geometry.dispose(); l.material.dispose() })
-        nodeLayers.forEach(function (p) { p.geometry.dispose(); p.material.dispose() })
-        centersGroup.forEach(function (o) { o.material.dispose() })
-        dust.geometry.dispose()
-        dust.material.dispose()
+        scene.traverse(function (o) {
+          if (o.geometry) o.geometry.dispose()
+          if (o.material) {
+            if (Array.isArray(o.material)) o.material.forEach(function (mm) { mm.dispose() })
+            else o.material.dispose()
+          }
+        })
         tex.dispose()
         renderer.dispose()
         if (el.parentNode) el.parentNode.removeChild(el)
