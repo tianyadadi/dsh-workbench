@@ -4,5 +4,6 @@
   "modules_dir": "C:/Users/你的用户名/.dsh/node_modules",
   "memory_dir": "C:/Users/你的用户名/.dsh/memory",
   "artcraft_dir": "C:/Users/你的用户名/.dsh/artcraft",
-  "runtime_dir": ""
+  "runtime_dir": "",
+  "workarea_dir": "C:/Users/你的用户名/workarea"
 }

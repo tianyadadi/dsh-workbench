@@ -5,9 +5,9 @@
 一个单文件 Python 服务 + 单页前端，把 DSH 的插件、技能、记忆、成本、ArtCraft 应用全部可视化出来。
 打开就看不消耗任何 token，因为它只读本地文件，从不调用模型。
 
-| 记忆银河系 | 记忆太阳系 |
-|---|---|
-| ![银河系](docs/galaxy.png) | ![太阳系](docs/solar.png) |
+| 记忆银河系 | 记忆太阳系 | 文档占比饼图 |
+|---|---|---|
+| ![银河系](docs/galaxy.png) | ![太阳系](docs/solar.png) | ![文档占比](docs/pie.png) |
 
 ## 特性
 
@@ -19,6 +19,11 @@
   - 真实参数：半径（地球=1）、自转周期、公转周期、轴倾角、轨道偏心率，全部取自 NASA 数据
   - 椭圆轨道 + 开普勒方程（近日点快、远日点慢），土星带环
   - 点行星看该类记忆，点太阳看记忆文档
+- **文档占比饼图**：按天 / 按月 / 按文件看文档体量（行数）占比
+  - 数据源：`HANDOFF.md` + `archive/*.md` + `MEMORY.md`，全部本地扫描
+  - 每个 `##` 节按标题里的日期归到天；没有日期的归到文件修改日
+  - 悬停看单片占比，点图例看明细，`↻ 刷新数据` 重扫（不用重启服务）
+  - 直达链接：`http://127.0.0.1:8799/?panel=memory&view=pie&pie=day`
 - **插件开关**：从 `profile.bundles` 摘掉/加回，自动备份
 - **插件参数**：可视化表单直接改 JSON 配置（滑块、开关）
 - **插件卸载**：带确认警告窗
@@ -44,7 +49,8 @@ cd dsh-workbench
   "modules_dir": "C:/Users/你的用户名/.dsh/node_modules",
   "memory_dir": "C:/Users/你的用户名/.dsh/memory",
   "artcraft_dir": "C:/Users/你的用户名/.dsh/artcraft",
-  "runtime_dir": ""
+  "runtime_dir": "",
+  "workarea_dir": "C:/Users/你的用户名/workarea"
 }
 ```
 
@@ -54,9 +60,10 @@ cd dsh-workbench
 | `memory_dir` | 记忆库目录（含 `index.sqlite`） | 记忆面板空 |
 | `artcraft_dir` | ArtCraft 安装目录 | 显示未安装 |
 | `runtime_dir` | DSH 运行时目录（只读版本号） | 显示 `?` |
+| `workarea_dir` | 交接文档目录（含 `HANDOFF.md`） | 饼图里没有交接文档，只剩 `MEMORY.md` |
 | `dsh_home` | 默认 `~/.dsh` | 用默认值 |
 
-也可用环境变量：`DSH_MODULES_DIR` / `DSH_MEMORY_DIR` / `DSH_ARTCRAFT_DIR` / `DSH_RUNTIME_DIR`。
+也可用环境变量：`DSH_MODULES_DIR` / `DSH_MEMORY_DIR` / `DSH_ARTCRAFT_DIR` / `DSH_RUNTIME_DIR` / `DSH_WORKAREA_DIR`。
 
 ## 启动
 
@@ -101,7 +108,7 @@ python server.py --port 8799
 | 概览 | 插件数、技能数、记忆数、工具定义 token、会话花费、磁盘占用 |
 | 插件 | 包名、用途、工具数、体积、启用状态、开关、参数、卸载 |
 | 技能 | 技能目录、来源、描述 |
-| 记忆 | 列表 + 3D 银河系 / 太阳系两种视图 |
+| 记忆 | 列表 + 三种视图：3D 银河系 / 太阳系 / 文档占比饼图 |
 | 成本 | 工具定义 token 明细、开销排行 |
 | ArtCraft | 14 个成员应用的安装状态与启用开关 |
 | 工具开销 | 每个工具的定义 token 估算 |

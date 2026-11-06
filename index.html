@@ -843,10 +843,17 @@ header{z-index:1000}
 </div>
 
 <script>
-const state = {panels: [], cur: null, memItems: [], memDoc: null, star: null, galaxy: null, solar: null, memView: 'galaxy'};
+const state = {panels: [], cur: null, memItems: [], memDoc: null, star: null, galaxy: null, solar: null, memView: 'galaxy', docStats: null, pieMode: 'day'};
 try {
   const savedView = localStorage.getItem('wb-memview');
   state.memView = (savedView === 'flat' || !savedView) ? 'galaxy' : savedView;
+} catch(_e){}
+// 直达链接：?panel=memory&view=pie （截图、收藏、发给别人看都方便）
+try {
+  const qv = new URLSearchParams(location.search).get('view');
+  if(qv === 'pie' || qv === 'galaxy' || qv === 'solar') state.memView = qv;
+  const pm = new URLSearchParams(location.search).get('pie');
+  if(pm === 'day' || pm === 'month' || pm === 'file') state.pieMode = pm;
 } catch(_e){}
 
 /* ── 主题系统（可扩展：往 THEMES 加一项就多一套皮肤） ───────────── */
@@ -955,7 +962,8 @@ async function init(){
     b.dataset.key = p.key;
     nav.appendChild(b);
   });
-  load(state.panels[0]?.key || 'overview');
+  const _startPanel = new URLSearchParams(location.search).get('panel');
+  load(state.panels.some(p=>p.key===_startPanel) ? _startPanel : (state.panels[0]?.key || 'overview'));
 }
 
 async function load(key){
@@ -1304,6 +1312,7 @@ function renderMemory(d){
     <div style="display:flex;gap:8px;margin-bottom:12px">
       <button class="act" id="viewGalaxy" onclick="setMemView('galaxy')">🌌 银河系</button>
       <button class="act" id="viewSolar" onclick="setMemView('solar')">☀ 太阳系</button>
+      <button class="act" id="viewPie" onclick="setMemView('pie')">🥧 文档占比</button>
       <span style="align-self:center;color:var(--dim);font-size:12px" id="galaxyHint"></span>
     </div>
     <div class="mem-wrap">
@@ -1350,6 +1359,19 @@ function setMemView(mode){
   if(bGal){ bGal.style.borderColor = mode==='galaxy' ? 'var(--accent)' : 'rgba(90,160,190,.28)'; }
   const bSolar = document.getElementById('viewSolar');
   if(bSolar){ bSolar.style.borderColor = mode==='solar' ? 'var(--accent)' : 'rgba(90,160,190,.28)'; }
+  const bPie = document.getElementById('viewPie');
+  if(bPie){ bPie.style.borderColor = mode==='pie' ? 'var(--accent)' : 'rgba(90,160,190,.28)'; }
+  // 记忆类型的颜色图例只在三维视图里有意义
+  const memLegend = document.querySelector('.star-box > .legend');
+  if(memLegend){ memLegend.style.display = mode==='pie' ? 'none' : ''; }
+  // 标题副文案跟着视图走（三维视图讲编码规则，饼图讲统计口径）
+  const sub = document.querySelector('#main h2 small');
+  if(sub){
+    if(!sub.dataset.orig) sub.dataset.orig = sub.textContent;
+    sub.textContent = mode==='pie'
+      ? '按天 / 按月 / 按文件看文档体量占比 · 数据来自 HANDOFF.md + archive/ + MEMORY.md'
+      : sub.dataset.orig;
+  }
 
   if(mode === 'galaxy'){
     host.style.display = 'block';
@@ -1404,10 +1426,206 @@ function setMemView(mode){
         toast(p.name + ' · 暂未绑定记忆类型', false);
       }
     });
+  } else if(mode === 'pie'){
+    host.style.display = 'block';
+    host.innerHTML = '';
+    const hint = document.getElementById('galaxyHint');
+    if(hint) hint.textContent = '按天 / 按月 / 按文件 · 悬停看占比 · 数据全部来自本地 md';
+    renderPieView(host);
   } else {
-    // 只剩银河系与太阳系；非法值回落到银河系
+    // 只剩银河系 / 太阳系 / 文档占比；非法值回落到银河系
     setMemView('galaxy');
   }
+}
+
+/* ── 文档占比饼图：按天 / 按月 / 按文件 ─────────────────────── */
+const PIE_COLORS = ['#5ac8fa','#34c759','#ff9f0a','#ff375f','#bf5af2','#64d2ff',
+                    '#ffd60a','#30d158','#ff6482','#5e5ce6','#ac8e68','#8e8e93'];
+
+async function loadDocStats(){
+  if(state.docStats) return state.docStats;
+  try{
+    const r = await fetch('/api/docstats');
+    state.docStats = await r.json();
+  }catch(e){
+    state.docStats = {ok:false, error:String(e && e.message || e)};
+  }
+  return state.docStats;
+}
+
+async function renderPieView(host){
+  host.innerHTML = '<div style="padding:28px;color:var(--dim);font-size:13px">正在扫描本地文档…</div>';
+  const d = await loadDocStats();
+  if(!host.isConnected) return;
+  if(!d || !d.ok){
+    host.innerHTML = '<div style="padding:24px;color:#e06a7a;font-size:13px;line-height:1.9">读不到文档统计：' +
+      esc((d && d.error) || '未知错误') + '<br>确认 config.json 里的 <span class="mono">workarea_dir</span> / ' +
+      '<span class="mono">memory_dir</span> 指向真实目录。</div>';
+    return;
+  }
+  host.innerHTML = `
+    <div style="display:flex;flex-direction:column;height:100%;min-height:0">
+      <div style="display:flex;gap:8px;padding:10px 12px 0;align-items:center;flex:none">
+        <button class="act" data-pie="day">按天</button>
+        <button class="act" data-pie="month">按月</button>
+        <button class="act" data-pie="file">按文件</button>
+        <button class="act" id="pieReload" title="重新扫描本地文档（不重启服务）">↻ 刷新数据</button>
+        <span style="color:var(--dim);font-size:12px;margin-left:4px" id="pieHint"></span>
+      </div>
+      <div style="flex:1;display:flex;min-height:0">
+        <div style="flex:1;position:relative;min-width:0"><canvas id="pieCanvas" style="display:block"></canvas></div>
+        <div id="pieLegend" style="width:42%;display:flex;flex-direction:column;justify-content:center;overflow:auto;padding:10px 12px;font-size:12px"></div>
+      </div>
+    </div>`;
+  const paint = ()=>host.querySelectorAll('[data-pie]').forEach(x=>{
+    x.style.borderColor = x.dataset.pie === state.pieMode ? 'var(--accent)' : 'rgba(90,160,190,.28)';
+  });
+  host.querySelectorAll('[data-pie]').forEach(b=>{
+    b.onclick = ()=>{ state.pieMode = b.dataset.pie; paint(); drawPie(host, d); };
+  });
+  paint();
+  const reloadBtn = host.querySelector('#pieReload');
+  if(reloadBtn){
+    reloadBtn.onclick = async ()=>{
+      reloadBtn.disabled = true;
+      const old = reloadBtn.textContent;
+      reloadBtn.textContent = '扫描中…';
+      state.docStats = null;
+      const fresh = await loadDocStats();
+      reloadBtn.disabled = false;
+      reloadBtn.textContent = old;
+      if(fresh && fresh.ok){ drawPie(host, fresh); toast('已重新扫描本地文档', false); }
+      else { toast('扫描失败：' + ((fresh && fresh.error) || '未知'), true); }
+    };
+  }
+  drawPie(host, d);
+}
+
+function drawPie(host, d){
+  const cvs = host.querySelector('#pieCanvas');
+  const lg = host.querySelector('#pieLegend');
+  const hint = host.querySelector('#pieHint');
+  if(!cvs || !lg) return;
+
+  const mode = state.pieMode;
+  let rows;
+  if(mode === 'file'){
+    rows = (d.files || []).map(f=>({key:f.name, lines:f.lines, note:f.kind}));
+    rows.sort((a,b)=>b.lines-a.lines);
+  } else if(mode === 'month'){
+    rows = (d.months || []).map(m=>({key:m.key, lines:m.lines, note:(m.files||[]).join(' / ')}));
+    rows.sort((a,b)=>a.key.localeCompare(b.key));
+  } else {
+    rows = (d.days || []).map(x=>({key:x.key, lines:x.lines, note:(x.files||[]).join(' / ')}));
+    rows.sort((a,b)=>a.key.localeCompare(b.key));
+  }
+  rows = rows.filter(r=>r.lines > 0);
+  const total = rows.reduce((s,r)=>s+r.lines, 0) || 1;
+
+  // 布局
+  const box = cvs.parentElement.getBoundingClientRect();
+  const W = Math.max(240, box.width), H = Math.max(240, box.height);
+  const dpr = window.devicePixelRatio || 1;
+  cvs.width = Math.round(W*dpr); cvs.height = Math.round(H*dpr);
+  cvs.style.width = W + 'px'; cvs.style.height = H + 'px';
+  const ctx = cvs.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const cx = W/2, cy = H/2;
+  const R = Math.min(W, H)/2 - 16;
+  const rIn = R * 0.58;
+  const slices = [];
+  let a0 = -Math.PI/2;
+
+  const draw = (hl = -1)=>{
+    ctx.clearRect(0, 0, W, H);
+    let start = -Math.PI/2;
+    slices.length = 0;
+    rows.forEach((row, i)=>{
+      const ang = row.lines / total * Math.PI * 2;
+      const isHl = i === hl;
+      const mid = start + ang/2;
+      const off = isHl ? 8 : 0;
+      const ox = Math.cos(mid) * off, oy = Math.sin(mid) * off;
+      const expand = isHl ? 3 : 0;
+      ctx.beginPath();
+      ctx.arc(cx + ox, cy + oy, R + expand, start, start + ang);
+      ctx.arc(cx + ox, cy + oy, rIn, start + ang, start, true);
+      ctx.closePath();
+      ctx.fillStyle = PIE_COLORS[i % PIE_COLORS.length];
+      ctx.globalAlpha = (hl === -1 || isHl) ? 0.92 : 0.42;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = 'rgba(5,8,16,.85)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      slices.push({i, start, end: start + ang, row});
+      start += ang;
+    });
+
+    // 中心文字
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const hi = hl >= 0 ? rows[hl] : null;
+    if(hi){
+      ctx.fillStyle = PIE_COLORS[hl % PIE_COLORS.length];
+      ctx.font = '600 15px "Segoe UI",system-ui,sans-serif';
+      ctx.fillText(hi.key, cx, cy - 12);
+      ctx.fillStyle = 'rgba(230,240,250,.92)';
+      ctx.font = '600 22px "Segoe UI",system-ui,sans-serif';
+      ctx.fillText((hi.lines*100/total).toFixed(1) + '%', cx, cy + 12);
+      ctx.fillStyle = 'rgba(150,170,190,.9)';
+      ctx.font = '12px "Segoe UI",system-ui,sans-serif';
+      ctx.fillText(hi.lines + ' 行', cx, cy + 32);
+    } else {
+      ctx.fillStyle = 'rgba(230,240,250,.95)';
+      ctx.font = '600 24px "Segoe UI",system-ui,sans-serif';
+      ctx.fillText(String(d.total && d.total.lines || total), cx, cy - 8);
+      ctx.fillStyle = 'rgba(150,170,190,.9)';
+      ctx.font = '12px "Segoe UI",system-ui,sans-serif';
+      const what = mode === 'file' ? '个文档' : (mode === 'month' ? '个月份' : '个日期');
+      ctx.fillText(rows.length + ' ' + what + ' · 总行数', cx, cy + 16);
+    }
+  };
+
+  // 图例
+  lg.innerHTML = rows.map((row, i)=>`
+    <div class="pie-row" data-i="${i}" style="display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:8px;cursor:pointer">
+      <i style="width:10px;height:10px;border-radius:3px;flex:none;background:${PIE_COLORS[i % PIE_COLORS.length]}"></i>
+      <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(row.note || '')}">${esc(row.key)}</span>
+      <span class="mono" style="color:var(--dim);flex:none">${row.lines} 行 · ${(row.lines*100/total).toFixed(1)}%</span>
+    </div>`).join('') || '<div class="empty">没有可统计的文档</div>';
+
+  const rowsEls = lg.querySelectorAll('.pie-row');
+  rowsEls.forEach(el=>{
+    const i = +el.dataset.i;
+    el.onmouseenter = ()=>{ draw(i); el.style.background = 'rgba(90,160,190,.14)'; };
+    el.onmouseleave = ()=>{ draw(-1); el.style.background = ''; };
+    el.onclick = ()=>{ const row = rows[i]; toast(row.key + ' · ' + row.lines + ' 行 · ' + (row.lines*100/total).toFixed(1) + '%' + (row.note ? ' · ' + row.note : ''), false); };
+  });
+
+  // 画布悬停：按角度找扇区
+  const hit = (ev)=>{
+    const rect = cvs.getBoundingClientRect();
+    const x = ev.clientX - rect.left - cx, y = ev.clientY - rect.top - cy;
+    const dist = Math.hypot(x, y);
+    if(dist < rIn - 4 || dist > R + 10) return -1;
+    let ang = Math.atan2(y, x);
+    if(ang < -Math.PI/2) ang += Math.PI*2;
+    for(const s of slices){
+      if(ang >= s.start && ang < s.end) return s.i;
+    }
+    return -1;
+  };
+  cvs.onmousemove = (ev)=>{
+    const i = hit(ev);
+    if(i !== cvs._hl){ cvs._hl = i; draw(i); }
+    cvs.style.cursor = i >= 0 ? 'pointer' : 'default';
+  };
+  cvs.onmouseleave = ()=>{ cvs._hl = -1; draw(-1); };
+
+  draw(-1);
+  if(hint) hint.textContent = '共 ' + rows.length + ' 片 · 总 ' + (d.total && d.total.lines || total) + ' 行 · 悬停看占比';
 }
 
 /* 恒星核心 · 记忆文档总览（MEMORY.md 的解析结果） */

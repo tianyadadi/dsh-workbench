@@ -84,6 +84,14 @@ MEMORY_DIR = _pick(
     DSH_HOME / "memory",
 ) or (DSH_HOME / "memory")
 
+# 交接文档目录（HANDOFF.md + archive/，给「文档占比」饼图用）
+WORKAREA = _pick(
+    _CONFIG.get("workarea_dir"),
+    os.environ.get("DSH_WORKAREA_DIR"),
+    DSH_HOME.parent / "workarea",
+    DSH_HOME / "workarea",
+) or (DSH_HOME / "workarea")
+
 # ArtCraft 安装目录
 ART_DIR = _pick(
     _CONFIG.get("artcraft_dir"),
@@ -392,6 +400,104 @@ def scan_memory() -> dict:
     except Exception as e:  # noqa: BLE001
         return {"items": [], "count": 0, "error": str(e), "doc": memory_doc()}
     return {"items": items, "count": len(items), "doc": memory_doc()}
+
+
+# ---------------------------------------------------------------- 文档体量（按天 / 按月）
+
+DOC_DAY_RE = re.compile(r"(20\d{2})-(\d{2})-(\d{2})")
+DOC_SNAP_RE = re.compile(r"(20\d{2})(\d{2})(\d{2})-\d{6}")
+
+
+def _doc_sources():
+    """交接文档 + 记忆文档，全部本地 .md，只读。"""
+    out = []
+    h = WORKAREA / "HANDOFF.md"
+    if h.exists():
+        out.append(h)
+    arch = WORKAREA / "archive"
+    if arch.exists():
+        out.extend(sorted(arch.glob("*.md")))
+    m = MEMORY_DIR / "MEMORY.md"
+    if m.exists():
+        out.append(m)
+    return out
+
+
+def _section_day(title: str, body: str, fallback: str) -> str:
+    m = DOC_DAY_RE.search(title) or DOC_DAY_RE.search(body[:800])
+    if m:
+        return "%s-%s-%s" % (m.group(1), m.group(2), m.group(3))
+    m = DOC_SNAP_RE.search(title)
+    if m:
+        return "%s-%s-%s" % (m.group(1), m.group(2), m.group(3))
+    return fallback
+
+
+def scan_docstats() -> dict:
+    """按天/按月统计文档体量占比（纯本地扫描，不联网、不耗 token）。
+
+    口径：每个 .md 按 `## ` 切成节，节内取第一个日期（标题优先，其次正文前 800 字）；
+    没有日期的节归到文件修改日期。MEMORY.md 的「## 快照 20261106-025729」也认。
+    """
+    days, months, files = {}, {}, []
+    total_lines = total_bytes = 0
+
+    for p in _doc_sources():
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")
+            mtime = time.strftime("%Y-%m-%d", time.localtime(p.stat().st_mtime))
+        except Exception:  # noqa: BLE001
+            continue
+
+        fl = fb = 0
+        for part in re.split(r"(?m)^(?=## )", text):
+            if not part.strip():
+                continue
+            lines = part.count("\n") + (0 if part.endswith("\n") else 1)
+            nbytes = len(part.encode("utf-8"))
+            head = part.split("\n", 1)
+            title = head[0].strip()
+            body = head[1] if len(head) > 1 else ""
+            day = _section_day(title, body, mtime)
+            month = day[:7]
+            for bucket, key in ((days, day), (months, month)):
+                e = bucket.setdefault(key, {"lines": 0, "bytes": 0, "files": set()})
+                e["lines"] += lines
+                e["bytes"] += nbytes
+                e["files"].add(p.name)
+            fl += lines
+            fb += nbytes
+            total_lines += lines
+            total_bytes += nbytes
+
+        files.append({
+            "name": p.name,
+            "lines": fl,
+            "bytes": fb,
+            "kind": "archive" if "archive" in p.parts else ("memory" if p.name == "MEMORY.md" else "handoff"),
+        })
+
+    def finish(bucket):
+        rows = []
+        for k in sorted(bucket):
+            e = bucket[k]
+            rows.append({
+                "key": k,
+                "lines": e["lines"],
+                "bytes": e["bytes"],
+                "files": sorted(e["files"]),
+                "pct": round(e["lines"] * 100.0 / total_lines, 2) if total_lines else 0.0,
+            })
+        return rows
+
+    return {
+        "ok": True,
+        "days": finish(days),
+        "months": finish(months),
+        "files": sorted(files, key=lambda x: -x["lines"]),
+        "total": {"lines": total_lines, "bytes": total_bytes, "files": len(files)},
+        "sources": [str(p) for p in _doc_sources()],
+    }
 
 
 def scan_cost() -> dict:
@@ -819,6 +925,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/panels":
                 self._json([{"key": k, "label": lab} for k, lab, _ in PANELS])
+                return
+            if path == "/api/docstats":
+                self._json(scan_docstats())
                 return
             if path.startswith("/api/"):
                 key = path[5:]
