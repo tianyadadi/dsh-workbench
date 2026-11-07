@@ -19,8 +19,14 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+try:
+    import cloud_api
+except Exception:  # noqa: BLE001
+    cloud_api = None
+
 HERE = Path(__file__).resolve().parent
 DATA_FILE = HERE / "cloud_price_data.json"
+API_CACHE: dict = {}
 
 # ---------------------------------------------------------------- 默认数据
 # 价格口径：个人 = 元/年（新用户活动价为主，续费价另记）；企业 = 元/月（包年折算）
@@ -247,6 +253,7 @@ def _build_rows(data: dict) -> list[dict]:
                     "year": round(m * 12, 1) if m is not None else None,
                     "score": _score(it),
                     "vendor_weight": _vendor_weight(v["id"]),
+                    "api_spec": it.get("api_spec") or {},
                 }
                 row["total_score"] = round(row["score"] * row["vendor_weight"], 1)
                 rows.append(row)
@@ -298,9 +305,43 @@ def azure_prices(region: str = "eastasia", limit: int = 40, ttl: int = 1800) -> 
     return {"ok": not err, "at": now, "items": items, "err": err}
 
 
+def _load_config() -> dict:
+    """读同目录 config.json（和 server.py 共用一份配置）。"""
+    try:
+        return json.loads((HERE / "config.json").read_text("utf-8"))
+    except Exception:
+        return {}
+
+
+def _api_query(vendor: str, cfg: dict, spec: dict, ttl: int = 600) -> dict:
+    """询价（只询价不下单），结果缓存 10 分钟。"""
+    if not cloud_api:
+        return {"ok": False, "error": "cloud_api.py 不可用"}
+    key = vendor + "|" + json.dumps(spec, sort_keys=True, ensure_ascii=False)
+    hit = API_CACHE.get(key)
+    if hit and time.time() - float(hit.get("at") or 0) < ttl:
+        return hit
+    res = cloud_api.query(vendor, cfg, spec)
+    API_CACHE[key] = res
+    return res
+
+
 def scan_cloudprice() -> dict:
     data = load_data()
     rows = _build_rows(data)
+    cfg = _load_config()
+    apis = cfg.get("cloud_apis") or {}
+    api_used = 0
+    api_err = ""
+    for r in rows:
+        spec = r.get("api_spec") or {}
+        vc = apis.get(r["vendor_id"]) or {}
+        if spec and vc.get("enabled"):
+            r["official"] = _api_query(r["vendor_id"], vc, spec)
+            if r["official"].get("ok"):
+                api_used += 1
+            elif not api_err:
+                api_err = r["official"].get("error") or ""
     az = azure_prices()
     fx = 7.2  # 美元→人民币参考汇率，写死并标注
     for x in az.get("items", []):
@@ -338,6 +379,8 @@ def scan_cloudprice() -> dict:
         "recommend": {"personal": pick("personal"), "enterprise": pick("enterprise")},
         "azure": {"at": az.get("at"), "ok": az.get("ok"), "err": az.get("err"),
                   "fx": fx, "items": az.get("items", [])},
+        "api": {"used": api_used, "error": api_err,
+                "enabled": {k: bool(v.get("enabled")) for k, v in (apis or {}).items()}},
         "updated": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
 

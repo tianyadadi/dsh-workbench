@@ -238,6 +238,43 @@ AWS 的 Price List 全量 9.1 GB，不抓。
 - 个人档够用就别上企业档，同配置月成本通常贵 2~4 倍
 - 活动价随时变，下单前点卡片上的「官网 ↗」核对
 
+### 接入三大云官方询价 API（可选）
+
+三家都有「只询价、不下单、不收费」的官方接口：
+
+| 厂商 | 接口 | 需要 |
+|---|---|---|
+| 腾讯云 | `InquiryPriceRunInstances` | SecretId / SecretKey（只读） |
+| 阿里云 | `DescribePrice` | AccessKeyId / AccessKeySecret（只读） |
+| 华为云 | `ListRateOnPeriodDetail` | AK / SK + 开通 BSS 读取权限 |
+
+**配置两步**
+
+1. `config.json` 里填 `cloud_apis`（模板见 `config.example.json`），`enabled` 改 `true`
+2. `cloud_price_data.json` 对应配置项里补 `api_spec`，例如腾讯云：
+
+```json
+{
+  "name": "轻量应用服务器 2核2G",
+  "api_spec": {
+    "Placement": { "Zone": "ap-guangzhou-3" },
+    "ImageId": "img-xxx",
+    "InstanceType": "S5.MEDIUM2",
+    "InstanceChargeType": "PREPAID",
+    "InstanceChargePrepaid": { "Period": 12 }
+  }
+}
+```
+
+刷新面板后，卡片上会多一行「官方询价 ¥xxx」。
+
+**注意**
+
+- 返回的是**官方标准价**，通常不含新用户活动价，和「参考价」分开显示
+- 询价结果缓存 10 分钟，不会反复打接口
+- 签名逻辑已用假 AK 走通过（腾讯返回 `SecretIdNotFound`、阿里 `InvalidAccessKeyId`、华为 `Unauthorized`），
+  说明请求格式与签名算法是对的，只差真实 AK
+
 ## 扩展面板
 
 在 `server.py` 的 `PANELS` 里加一行：

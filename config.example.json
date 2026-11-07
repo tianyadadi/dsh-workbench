@@ -12,5 +12,27 @@
   "github_proxies": ["https://gh-proxy.com/"],
   "github_refresh_secs": 60,
   "github_sample_n": 300,
-  "github_alert_hour": 0
+  "github_alert_hour": 0,
+
+  "_cloud_api_说明": "三大云官方询价 API（只询价、不下单、不收费）。填了 AK 并把 enabled 改 true 才会调用；还要在 cloud_price_data.json 的配置项里补 api_spec",
+  "cloud_apis": {
+    "tencent": {
+      "enabled": false,
+      "secret_id": "",
+      "secret_key": "",
+      "region": "ap-guangzhou"
+    },
+    "aliyun": {
+      "enabled": false,
+      "access_key_id": "",
+      "access_key_secret": "",
+      "region": "cn-hangzhou"
+    },
+    "huawei": {
+      "enabled": false,
+      "ak": "",
+      "sk": "",
+      "region": "cn-north-4"
+    }
+  }
 }

@@ -958,6 +958,7 @@ header{z-index:1000}
 .cp-price small{font-size:12px;color:var(--dim);font-weight:400;font-family:inherit}
 .cp-month{font-size:11px;color:var(--dim)}
 .cp-renew{font-size:11px;color:var(--warn);margin-top:2px}
+.cp-official{font-size:11px;color:var(--ok);margin-top:2px}
 .cp-score{margin-top:9px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--dim)}
 .cp-score .bar{flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden}
 .cp-score .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:3px}
@@ -2474,6 +2475,8 @@ function renderCloudprice(d){
     <div class="cp-bar">
       <span class="cp-badge">参考价核对 ${esc(d.checked_at || '—')}</span>
       <span class="cp-badge live">Azure 实时 ${d.azure && d.azure.ok ? '已连接' : '未连上'}</span>
+      ${(d.api && d.api.used) ? `<span class="cp-badge live">${d.api.used} 个配置走官方询价</span>` : ''}
+      ${(d.api && d.api.error) ? `<span class="cp-badge" style="color:var(--bad)" title="${esc(d.api.error)}">API: ${esc(d.api.error.slice(0, 28))}</span>` : ''}
       <button class="gh-switch" id="cpRefresh">刷新</button>
       <span style="margin-left:auto">${esc(d.note || '')}</span>
     </div>
@@ -2582,6 +2585,7 @@ function cpPaint(d){
            style="margin-left:auto;font-size:11px;color:var(--accent);text-decoration:none">官网 ↗</a>
       </div>
       ${r.renew ? `<div class="cp-renew">续费 ¥${r.renew}/${r.unit}</div>` : '<div class="cp-renew" style="opacity:.45">包年无续费溢价</div>'}
+      ${r.official && r.official.ok ? `<div class="cp-official">官方询价 ¥${r.official.data.discount || r.official.data.original}（${esc(r.official.data.unit || '')}）</div>` : ''}
       <div class="cp-score"><span>综合 ${r.total_score}</span><div class="bar"><i style="width:${Math.min(100, r.total_score)}%"></i></div></div>
     </div>`;
   }).join('');
