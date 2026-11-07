@@ -116,6 +116,36 @@ def tencent_images(cfg: dict, region: str | None = None, platform: str = "Ubuntu
     return prefer or out
 
 
+# ---------------------------------------------------------------- 腾讯云 Lighthouse（轻量）
+
+def tencent_lh_bundles(cfg: dict, region: str | None = None) -> list:
+    """轻量应用服务器的套餐列表。"""
+    region = region or cfg.get("region") or "ap-guangzhou"
+    r = tc3_call(cfg, "lighthouse", "DescribeBundles", "2020-03-24", region, {"Limit": 50})
+    return [{"id": b.get("BundleId"), "cpu": b.get("CPU"), "mem": b.get("Memory"),
+             "disk": b.get("SystemDiskSize"), "bw": b.get("InternetMaxBandwidthOut"),
+             "traffic": b.get("TrafficPackageSize")}
+            for b in (r.get("BundleSet") or [])]
+
+
+def tencent_lh_blueprints(cfg: dict, region: str | None = None) -> list:
+    """轻量应用服务器的镜像列表。"""
+    region = region or cfg.get("region") or "ap-guangzhou"
+    r = tc3_call(cfg, "lighthouse", "DescribeBlueprints", "2020-03-24", region, {"Limit": 20})
+    return [{"id": b.get("BlueprintId"), "name": b.get("BlueprintName") or ""}
+            for b in (r.get("BlueprintSet") or []) if b.get("BlueprintId")]
+
+
+def tencent_lh_inquiry(cfg: dict, spec: dict, timeout: int = TIMEOUT) -> dict:
+    """轻量应用服务器询价（InquiryPriceRunInstances）。"""
+    region = cfg.get("region") or "ap-guangzhou"
+    r = tc3_call(cfg, "lighthouse", "InquiryPriceRunInstances", "2020-03-24",
+                 region, spec, timeout=timeout)
+    p = r.get("Price") or {}
+    return {"original": p.get("OriginalPrice"), "discount": p.get("DiscountPrice"),
+            "currency": p.get("Currency"), "raw": p}
+
+
 # ---------------------------------------------------------------- 阿里云
 
 def _pct(s) -> str:
@@ -123,8 +153,8 @@ def _pct(s) -> str:
 
 
 def aliyun_call(cfg: dict, action: str, version: str, params: dict,
-                timeout: int = TIMEOUT) -> dict:
-    """阿里云 RPC 风格调用（HMAC-SHA1 签名）。"""
+                endpoint: str = "ecs.aliyuncs.com", timeout: int = TIMEOUT) -> dict:
+    """阿里云 RPC 风格调用（HMAC-SHA1 签名）。endpoint 可换成 swas 等产品。"""
     ak, sk = cfg.get("access_key_id") or "", cfg.get("access_key_secret") or ""
     if not ak or not sk:
         raise RuntimeError("未配置 access_key_id / access_key_secret")
@@ -146,7 +176,7 @@ def aliyun_call(cfg: dict, action: str, version: str, params: dict,
     signature = base64.b64encode(
         hmac.new((sk + "&").encode("utf-8"), string_to_sign.encode("utf-8"), hashlib.sha1).digest()
     ).decode()
-    url = "https://ecs.aliyuncs.com/?" + canonical + "&Signature=" + _pct(signature)
+    url = "https://%s/?" % endpoint + canonical + "&Signature=" + _pct(signature)
     d = _http(url, "GET", {"User-Agent": "dsh-workbench/1.1"}, None, timeout)
     if d.get("Code"):
         raise RuntimeError("%s: %s" % (d.get("Code"), d.get("Message")))
@@ -155,7 +185,10 @@ def aliyun_call(cfg: dict, action: str, version: str, params: dict,
 
 def aliyun_price(cfg: dict, spec: dict, timeout: int = TIMEOUT) -> dict:
     """DescribePrice：只查价。spec 需要 InstanceType / ImageId / Period / PriceUnit。"""
-    d = aliyun_call(cfg, "DescribePrice", "2014-05-26", spec, timeout)
+    region = cfg.get("region") or "cn-hangzhou"
+    # 用 region 级 endpoint，global 的 ecs.aliyuncs.com 有时解析不稳
+    ep = "ecs.%s.aliyuncs.com" % region
+    d = aliyun_call(cfg, "DescribePrice", "2014-05-26", spec, endpoint=ep, timeout=timeout)
     info = d.get("PriceInfo") or {}
     price = info.get("Price") or {}
     return {
@@ -177,6 +210,45 @@ def aliyun_images(cfg: dict, limit: int = 20) -> list:
            for x in imgs if x.get("ImageId")]
     linux = [x for x in out if "linux" in x["name"].lower() or "ubuntu" in x["name"].lower()]
     return linux or out
+
+
+# ---------------------------------------------------------------- 阿里云 SWAS（轻量）
+
+SWAS_ENDPOINT = "swas.cn-hangzhou.aliyuncs.com"
+
+
+def aliyun_swas_plans(cfg: dict) -> list:
+    """轻量应用服务器的套餐列表（SWAS ListPlans，直接带 OriginPrice）。"""
+    d = aliyun_call(cfg, "ListPlans", "2020-06-01",
+                    {"RegionId": cfg.get("region") or "cn-hangzhou"},
+                    endpoint=SWAS_ENDPOINT)
+    out = []
+    for p in (d.get("Plans") or []):
+        try:
+            mem = float(p.get("Memory") or 0)
+        except (TypeError, ValueError):
+            mem = 0.0
+        out.append({
+            "id": p.get("PlanId"),
+            "cpu": p.get("Core"),
+            "mem": mem,
+            "disk": p.get("DiskSize"),
+            "bw": p.get("Bandwidth"),        # 阿里云这里给的是月流量(GB)，不是带宽
+            "price": p.get("OriginPrice"),   # 元/月 标准价
+            "currency": p.get("Currency"),
+            "os": "windows" if "win" in (p.get("PlanId") or "") else "linux",
+        })
+    return out
+
+
+def aliyun_swas_price(cfg: dict, spec: dict, timeout: int = TIMEOUT) -> dict:
+    """轻量应用服务器询价（SWAS DescribePrice）。"""
+    d = aliyun_call(cfg, "DescribePrice", "2020-06-01", spec,
+                    endpoint=SWAS_ENDPOINT, timeout=timeout)
+    info = d.get("Price") or d.get("PriceInfo") or {}
+    return {"original": info.get("OriginalPrice") or info.get("OriginalAmount"),
+            "discount": info.get("DiscountPrice") or info.get("TradePrice"),
+            "currency": info.get("Currency"), "raw": d}
 
 
 # ---------------------------------------------------------------- 华为云

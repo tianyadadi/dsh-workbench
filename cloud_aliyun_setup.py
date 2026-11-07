@@ -29,7 +29,7 @@ DATA_FILE = HERE / "cloud_price_data.json"
 INSTANCE_TYPES = {
     "2核2G": "ecs.e-c1m1.large",
     "2核4G": "ecs.e-c1m2.large",
-    "4核8G": "ecs.e-c1m2.xlarge",
+    "4核8G": "ecs.c7.xlarge",      # 配置名叫「计算型 c7」，就用 c7
     "2核8G": "ecs.g7.large",
     "4核16G": "ecs.g7.2xlarge",
 }
@@ -77,6 +77,30 @@ def main() -> int:
     for v in data.get("vendors", []):
         if v.get("id") != "aliyun":
             continue
+
+        # 轻量档：SWAS ListPlans 直接带 OriginPrice（元/月），按 cpu+mem 匹配
+        print("2) 轻量应用服务器标准价（SWAS ListPlans）…")
+        try:
+            plans = cloud_api.aliyun_swas_plans(
+                {"access_key_id": ak, "access_key_secret": sk, "region": region})
+        except Exception as e:  # noqa: BLE001
+            print("   失败：%s" % str(e)[:80])
+            plans = []
+        for it in v.get("personal", []):
+            cpu, mem = it.get("cpu"), it.get("mem")
+            cands = [p for p in plans
+                     if p.get("os") == "linux" and p.get("cpu") == cpu
+                     and abs(float(p.get("mem") or 0) - float(mem or 0)) < 0.01]
+            if not cands:
+                print("   %s：没找到同配置套餐" % it.get("name"))
+                continue
+            p = min(cands, key=lambda x: float(x.get("price") or 9e9))
+            it["official_price"] = float(p["price"])
+            it["official_note"] = "SWAS %s" % p["id"]
+            changed += 1
+            print("   %s → %.0f 元/月（%s）" % (it.get("name"), it["official_price"], p["id"]))
+
+        # 企业档：ECS DescribePrice 询价
         # 只对 ECS 询价：轻量应用服务器是另一个产品，ECS 的 DescribePrice 查不出它的价
         for seg in ("enterprise",):
             for it in v.get(seg, []):

@@ -254,6 +254,8 @@ def _build_rows(data: dict) -> list[dict]:
                     "score": _score(it),
                     "vendor_weight": _vendor_weight(v["id"]),
                     "api_spec": it.get("api_spec") or {},
+                    "official_price": it.get("official_price"),
+                    "official_note": it.get("official_note") or "",
                 }
                 row["total_score"] = round(row["score"] * row["vendor_weight"], 1)
                 rows.append(row)

@@ -21,7 +21,9 @@
           "renew": 108,
           "region": "华东1",
           "note": "新用户首年",
-          "url": "https://www.aliyun.com/product/swas"
+          "url": "https://www.aliyun.com/product/swas",
+          "official_price": 45.0,
+          "official_note": "SWAS swas.s.c2m2s40b1.linux"
         },
         {
           "name": "轻量应用服务器 2核4G",
@@ -34,7 +36,9 @@
           "renew": 288,
           "region": "华东1",
           "note": "新用户首年",
-          "url": "https://www.aliyun.com/product/swas"
+          "url": "https://www.aliyun.com/product/swas",
+          "official_price": 70.0,
+          "official_note": "SWAS swas.s.c2m4s50b1.linux"
         },
         {
           "name": "轻量应用服务器 4核8G",
@@ -47,7 +51,9 @@
           "renew": 888,
           "region": "华东1",
           "note": "新用户首年",
-          "url": "https://www.aliyun.com/product/swas"
+          "url": "https://www.aliyun.com/product/swas",
+          "official_price": 220.0,
+          "official_note": "SWAS swas.s.c4m8s70b1.linux"
         }
       ],
       "enterprise": [
@@ -62,7 +68,16 @@
           "renew": null,
           "region": "华东1",
           "note": "包年约 2520 元",
-          "url": "https://www.aliyun.com/product/ecs"
+          "url": "https://www.aliyun.com/product/ecs",
+          "api_spec": {
+            "InstanceType": "ecs.g7.large",
+            "ImageId": "ubuntu_26_04_x64_20G_alibase_20261023.vhd",
+            "Period": 1,
+            "PriceUnit": "Month",
+            "Amount": 1,
+            "SystemDisk.Category": "cloud_essd",
+            "SystemDisk.Size": 40
+          }
         },
         {
           "name": "ECS 计算型 c7 4核8G",
@@ -75,7 +90,16 @@
           "renew": null,
           "region": "华东1",
           "note": "包年约 3840 元",
-          "url": "https://www.aliyun.com/product/ecs"
+          "url": "https://www.aliyun.com/product/ecs",
+          "api_spec": {
+            "InstanceType": "ecs.c7.xlarge",
+            "ImageId": "ubuntu_26_04_x64_20G_alibase_20261023.vhd",
+            "Period": 1,
+            "PriceUnit": "Month",
+            "Amount": 1,
+            "SystemDisk.Category": "cloud_essd",
+            "SystemDisk.Size": 40
+          }
         },
         {
           "name": "ECS 通用型 g7 4核16G",
@@ -88,7 +112,16 @@
           "renew": null,
           "region": "华东1",
           "note": "包年约 5040 元",
-          "url": "https://www.aliyun.com/product/ecs"
+          "url": "https://www.aliyun.com/product/ecs",
+          "api_spec": {
+            "InstanceType": "ecs.g7.2xlarge",
+            "ImageId": "ubuntu_26_04_x64_20G_alibase_20261023.vhd",
+            "Period": 1,
+            "PriceUnit": "Month",
+            "Amount": 1,
+            "SystemDisk.Category": "cloud_essd",
+            "SystemDisk.Size": 40
+          }
         }
       ]
     },
