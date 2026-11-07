@@ -2585,7 +2585,7 @@ function cpPaint(d){
            style="margin-left:auto;font-size:11px;color:var(--accent);text-decoration:none">官网 ↗</a>
       </div>
       ${r.renew ? `<div class="cp-renew">续费 ¥${r.renew}/${r.unit}</div>` : '<div class="cp-renew" style="opacity:.45">包年无续费溢价</div>'}
-      ${r.official && r.official.ok ? `<div class="cp-official">官方询价 ¥${r.official.data.discount || r.official.data.original}（${esc(r.official.data.unit || '')}）</div>` : ''}
+      ${r.official && r.official.ok ? `<div class="cp-official">官方询价 ¥${r.official.data.discount || r.official.data.original}（${r.unit === '年' ? '年付' : '月付'}）</div>` : ''}
       <div class="cp-score"><span>综合 ${r.total_score}</span><div class="bar"><i style="width:${Math.min(100, r.total_score)}%"></i></div></div>
     </div>`;
   }).join('');

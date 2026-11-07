@@ -110,7 +110,26 @@
           "renew": 180,
           "region": "广州",
           "note": "新用户首年",
-          "url": "https://cloud.tencent.com/product/lighthouse"
+          "url": "https://cloud.tencent.com/product/lighthouse",
+          "api_spec": {
+            "Placement": {
+              "Zone": "ap-guangzhou-6"
+            },
+            "ImageId": "img-6n21msk1",
+            "InstanceType": "S5.MEDIUM2",
+            "InstanceChargeType": "PREPAID",
+            "InstanceChargePrepaid": {
+              "Period": 12
+            },
+            "SystemDisk": {
+              "DiskType": "CLOUD_PREMIUM",
+              "DiskSize": 40
+            },
+            "InternetAccessible": {
+              "PublicIpAssigned": true,
+              "InternetMaxBandwidthOut": 4
+            }
+          }
         },
         {
           "name": "轻量应用服务器 2核4G",
@@ -123,7 +142,26 @@
           "renew": 320,
           "region": "广州",
           "note": "新用户首年",
-          "url": "https://cloud.tencent.com/product/lighthouse"
+          "url": "https://cloud.tencent.com/product/lighthouse",
+          "api_spec": {
+            "Placement": {
+              "Zone": "ap-guangzhou-6"
+            },
+            "ImageId": "img-6n21msk1",
+            "InstanceType": "S5.MEDIUM4",
+            "InstanceChargeType": "PREPAID",
+            "InstanceChargePrepaid": {
+              "Period": 12
+            },
+            "SystemDisk": {
+              "DiskType": "CLOUD_PREMIUM",
+              "DiskSize": 60
+            },
+            "InternetAccessible": {
+              "PublicIpAssigned": true,
+              "InternetMaxBandwidthOut": 5
+            }
+          }
         },
         {
           "name": "轻量应用服务器 4核8G",
@@ -136,7 +174,26 @@
           "renew": 900,
           "region": "广州",
           "note": "新用户首年",
-          "url": "https://cloud.tencent.com/product/lighthouse"
+          "url": "https://cloud.tencent.com/product/lighthouse",
+          "api_spec": {
+            "Placement": {
+              "Zone": "ap-guangzhou-6"
+            },
+            "ImageId": "img-6n21msk1",
+            "InstanceType": "S5.LARGE8",
+            "InstanceChargeType": "PREPAID",
+            "InstanceChargePrepaid": {
+              "Period": 12
+            },
+            "SystemDisk": {
+              "DiskType": "CLOUD_PREMIUM",
+              "DiskSize": 80
+            },
+            "InternetAccessible": {
+              "PublicIpAssigned": true,
+              "InternetMaxBandwidthOut": 6
+            }
+          }
         }
       ],
       "enterprise": [
@@ -151,7 +208,26 @@
           "renew": null,
           "region": "广州",
           "note": "包年约 2280 元",
-          "url": "https://cloud.tencent.com/product/cvm"
+          "url": "https://cloud.tencent.com/product/cvm",
+          "api_spec": {
+            "Placement": {
+              "Zone": "ap-guangzhou-6"
+            },
+            "ImageId": "img-6n21msk1",
+            "InstanceType": "S5.MEDIUM8",
+            "InstanceChargeType": "PREPAID",
+            "InstanceChargePrepaid": {
+              "Period": 1
+            },
+            "SystemDisk": {
+              "DiskType": "CLOUD_PREMIUM",
+              "DiskSize": 40
+            },
+            "InternetAccessible": {
+              "PublicIpAssigned": true,
+              "InternetMaxBandwidthOut": 5
+            }
+          }
         },
         {
           "name": "CVM 标准型 S5 4核8G",
@@ -164,7 +240,26 @@
           "renew": null,
           "region": "广州",
           "note": "包年约 3600 元",
-          "url": "https://cloud.tencent.com/product/cvm"
+          "url": "https://cloud.tencent.com/product/cvm",
+          "api_spec": {
+            "Placement": {
+              "Zone": "ap-guangzhou-6"
+            },
+            "ImageId": "img-6n21msk1",
+            "InstanceType": "S5.LARGE8",
+            "InstanceChargeType": "PREPAID",
+            "InstanceChargePrepaid": {
+              "Period": 1
+            },
+            "SystemDisk": {
+              "DiskType": "CLOUD_PREMIUM",
+              "DiskSize": 40
+            },
+            "InternetAccessible": {
+              "PublicIpAssigned": true,
+              "InternetMaxBandwidthOut": 5
+            }
+          }
         },
         {
           "name": "CVM 标准型 S5 4核16G",
@@ -177,7 +272,26 @@
           "renew": null,
           "region": "广州",
           "note": "包年约 4920 元",
-          "url": "https://cloud.tencent.com/product/cvm"
+          "url": "https://cloud.tencent.com/product/cvm",
+          "api_spec": {
+            "Placement": {
+              "Zone": "ap-guangzhou-6"
+            },
+            "ImageId": "img-6n21msk1",
+            "InstanceType": "S5.LARGE16",
+            "InstanceChargeType": "PREPAID",
+            "InstanceChargePrepaid": {
+              "Period": 1
+            },
+            "SystemDisk": {
+              "DiskType": "CLOUD_PREMIUM",
+              "DiskSize": 40
+            },
+            "InternetAccessible": {
+              "PublicIpAssigned": true,
+              "InternetMaxBandwidthOut": 5
+            }
+          }
         }
       ]
     },

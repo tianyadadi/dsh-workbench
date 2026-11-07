@@ -103,12 +103,17 @@ def tencent_inquiry(cfg: dict, spec: dict, timeout: int = TIMEOUT) -> dict:
 
 
 def tencent_images(cfg: dict, region: str | None = None, platform: str = "Ubuntu") -> list:
-    """列公共镜像（拿询价要用的 ImageId）。"""
+    """列公共镜像（拿询价要用的 ImageId）。
+
+    注意：部分地域/版本不接受 ImageType 参数（会报 UnknownParameter），
+    所以只传 Limit，取回来再按名字挑。
+    """
     region = region or cfg.get("region") or "ap-guangzhou"
-    resp = tc3_call(cfg, "cvm", "DescribeImages", "2017-03-12", region,
-                    {"ImageType": "PUBLIC_IMAGE", "Platform": platform, "Limit": 10})
-    return [{"id": x.get("ImageId"), "name": x.get("ImageName")}
-            for x in (resp.get("ImageSet") or [])]
+    resp = tc3_call(cfg, "cvm", "DescribeImages", "2017-03-12", region, {"Limit": 20})
+    out = [{"id": x.get("ImageId"), "name": x.get("ImageName") or ""}
+           for x in (resp.get("ImageSet") or []) if x.get("ImageId")]
+    prefer = [x for x in out if platform.lower() in x["name"].lower()]
+    return prefer or out
 
 
 # ---------------------------------------------------------------- 阿里云

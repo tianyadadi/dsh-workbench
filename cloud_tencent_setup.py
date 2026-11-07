@@ -76,6 +76,27 @@ def main() -> int:
     image_id = images[0]["id"]
     print("   OK：%s（%s）" % (image_id, images[0].get("name") or ""))
 
+    # 探测哪个可用区支持询价（不同地域可用区编号不一样）
+    print("2) 探测可用区…")
+    zone = None
+    for z in ("ap-guangzhou-6", "ap-guangzhou-5", "ap-guangzhou-4",
+              "ap-guangzhou-3", "ap-guangzhou-2", "ap-guangzhou-1"):
+        probe = {
+            "Placement": {"Zone": z}, "ImageId": image_id, "InstanceType": "S5.MEDIUM2",
+            "InstanceChargeType": "PREPAID", "InstanceChargePrepaid": {"Period": 1},
+            "SystemDisk": {"DiskType": "CLOUD_PREMIUM", "DiskSize": 40},
+            "InternetAccessible": {"PublicIpAssigned": True, "InternetMaxBandwidthOut": 3},
+        }
+        r = cloud_api.query("tencent", {"secret_id": sid, "secret_key": skey, "region": region}, probe)
+        if r.get("ok"):
+            zone = z
+            print("   用 %s" % z)
+            break
+        print("   %s 不行：%s" % (z, (r.get("error") or "")[:60]))
+    if not zone:
+        print("   所有可用区都不行，可能账号没开 CVM 或地域写错")
+        return 1
+
     data = _load(DATA_FILE)
     changed = 0
     for v in data.get("vendors", []):
@@ -93,7 +114,7 @@ def main() -> int:
                     continue
                 period = 12 if it.get("unit") == "年" else 1
                 spec = {
-                    "Placement": {"Zone": region + "-3"},
+                    "Placement": {"Zone": zone},
                     "ImageId": image_id,
                     "InstanceType": hit,
                     "InstanceChargeType": "PREPAID",
@@ -104,11 +125,13 @@ def main() -> int:
                         "InternetMaxBandwidthOut": int(it.get("bw") or 3),
                     },
                 }
-                print("2) 询价 %s …" % name, end=" ")
+                print("3) 询价 %s …" % name, end=" ")
                 r = cloud_api.query("tencent", {"secret_id": sid, "secret_key": skey, "region": region}, spec)
                 if r.get("ok"):
                     d = r["data"]
-                    print("¥%s（原价 ¥%s）" % (d.get("discount") or d.get("original"), d.get("original")))
+                    print("%.1f 元（原价 %.1f 元）" % (
+                        float(d.get("discount") or d.get("original") or 0),
+                        float(d.get("original") or 0)))
                     it["api_spec"] = spec
                     changed += 1
                 else:
