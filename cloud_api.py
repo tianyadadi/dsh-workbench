@@ -122,15 +122,16 @@ def _pct(s) -> str:
     return urllib.parse.quote(str(s), safe="~")
 
 
-def aliyun_price(cfg: dict, spec: dict, timeout: int = TIMEOUT) -> dict:
-    """DescribePrice：只查价。spec 需要 InstanceType / ImageId / Period / PriceUnit。"""
+def aliyun_call(cfg: dict, action: str, version: str, params: dict,
+                timeout: int = TIMEOUT) -> dict:
+    """阿里云 RPC 风格调用（HMAC-SHA1 签名）。"""
     ak, sk = cfg.get("access_key_id") or "", cfg.get("access_key_secret") or ""
     if not ak or not sk:
         raise RuntimeError("未配置 access_key_id / access_key_secret")
 
-    params = {
-        "Action": "DescribePrice",
-        "Version": "2014-05-26",
+    allp = {
+        "Action": action,
+        "Version": version,
         "Format": "JSON",
         "AccessKeyId": ak,
         "SignatureMethod": "HMAC-SHA1",
@@ -139,17 +140,22 @@ def aliyun_price(cfg: dict, spec: dict, timeout: int = TIMEOUT) -> dict:
         "Timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "RegionId": cfg.get("region") or "cn-hangzhou",
     }
-    params.update({k: v for k, v in spec.items() if v not in (None, "")})
-    canonical = "&".join("%s=%s" % (_pct(k), _pct(v)) for k, v in sorted(params.items()))
+    allp.update({k: v for k, v in params.items() if v not in (None, "")})
+    canonical = "&".join("%s=%s" % (_pct(k), _pct(v)) for k, v in sorted(allp.items()))
     string_to_sign = "GET&%2F&" + _pct(canonical)
     signature = base64.b64encode(
         hmac.new((sk + "&").encode("utf-8"), string_to_sign.encode("utf-8"), hashlib.sha1).digest()
     ).decode()
     url = "https://ecs.aliyuncs.com/?" + canonical + "&Signature=" + _pct(signature)
-
     d = _http(url, "GET", {"User-Agent": "dsh-workbench/1.1"}, None, timeout)
     if d.get("Code"):
         raise RuntimeError("%s: %s" % (d.get("Code"), d.get("Message")))
+    return d
+
+
+def aliyun_price(cfg: dict, spec: dict, timeout: int = TIMEOUT) -> dict:
+    """DescribePrice：只查价。spec 需要 InstanceType / ImageId / Period / PriceUnit。"""
+    d = aliyun_call(cfg, "DescribePrice", "2014-05-26", spec, timeout)
     info = d.get("PriceInfo") or {}
     price = info.get("Price") or {}
     return {
@@ -160,6 +166,15 @@ def aliyun_price(cfg: dict, spec: dict, timeout: int = TIMEOUT) -> dict:
         "unit": price.get("PriceUnit"),
         "raw": price,
     }
+
+
+def aliyun_images(cfg: dict, limit: int = 10) -> list:
+    """列系统镜像（拿询价要用的 ImageId）。"""
+    d = aliyun_call(cfg, "DescribeImages", "2014-05-26",
+                    {"ImageOwnerAlias": "system", "Limit": max(1, min(limit, 100))})
+    imgs = (d.get("Images") or {}).get("Image") or []
+    return [{"id": x.get("ImageId"), "name": x.get("OSName") or x.get("ImageName") or ""}
+            for x in imgs if x.get("ImageId")]
 
 
 # ---------------------------------------------------------------- 华为云
