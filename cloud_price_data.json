@@ -110,26 +110,7 @@
           "renew": 180,
           "region": "广州",
           "note": "新用户首年",
-          "url": "https://cloud.tencent.com/product/lighthouse",
-          "api_spec": {
-            "Placement": {
-              "Zone": "ap-guangzhou-6"
-            },
-            "ImageId": "img-6n21msk1",
-            "InstanceType": "S5.MEDIUM2",
-            "InstanceChargeType": "PREPAID",
-            "InstanceChargePrepaid": {
-              "Period": 12
-            },
-            "SystemDisk": {
-              "DiskType": "CLOUD_PREMIUM",
-              "DiskSize": 40
-            },
-            "InternetAccessible": {
-              "PublicIpAssigned": true,
-              "InternetMaxBandwidthOut": 4
-            }
-          }
+          "url": "https://cloud.tencent.com/product/lighthouse"
         },
         {
           "name": "轻量应用服务器 2核4G",
@@ -142,26 +123,7 @@
           "renew": 320,
           "region": "广州",
           "note": "新用户首年",
-          "url": "https://cloud.tencent.com/product/lighthouse",
-          "api_spec": {
-            "Placement": {
-              "Zone": "ap-guangzhou-6"
-            },
-            "ImageId": "img-6n21msk1",
-            "InstanceType": "S5.MEDIUM4",
-            "InstanceChargeType": "PREPAID",
-            "InstanceChargePrepaid": {
-              "Period": 12
-            },
-            "SystemDisk": {
-              "DiskType": "CLOUD_PREMIUM",
-              "DiskSize": 60
-            },
-            "InternetAccessible": {
-              "PublicIpAssigned": true,
-              "InternetMaxBandwidthOut": 5
-            }
-          }
+          "url": "https://cloud.tencent.com/product/lighthouse"
         },
         {
           "name": "轻量应用服务器 4核8G",
@@ -174,26 +136,7 @@
           "renew": 900,
           "region": "广州",
           "note": "新用户首年",
-          "url": "https://cloud.tencent.com/product/lighthouse",
-          "api_spec": {
-            "Placement": {
-              "Zone": "ap-guangzhou-6"
-            },
-            "ImageId": "img-6n21msk1",
-            "InstanceType": "S5.LARGE8",
-            "InstanceChargeType": "PREPAID",
-            "InstanceChargePrepaid": {
-              "Period": 12
-            },
-            "SystemDisk": {
-              "DiskType": "CLOUD_PREMIUM",
-              "DiskSize": 80
-            },
-            "InternetAccessible": {
-              "PublicIpAssigned": true,
-              "InternetMaxBandwidthOut": 6
-            }
-          }
+          "url": "https://cloud.tencent.com/product/lighthouse"
         }
       ],
       "enterprise": [

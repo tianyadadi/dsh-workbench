@@ -77,24 +77,30 @@ def main() -> int:
     for v in data.get("vendors", []):
         if v.get("id") != "aliyun":
             continue
-        for seg in ("personal", "enterprise"):
+        # 只对 ECS 询价：轻量应用服务器是另一个产品，ECS 的 DescribePrice 查不出它的价
+        for seg in ("enterprise",):
             for it in v.get(seg, []):
                 name = it.get("name", "")
                 hit = None
-                # 先精确匹配 "2核2G" 这类，避免 "4核8G" 被 "2核8G" 误匹配
                 for k in sorted(INSTANCE_TYPES, key=len, reverse=True):
                     if k in name:
                         hit = INSTANCE_TYPES[k]
                         break
                 if not hit:
                     continue
-                period = 12 if it.get("unit") == "年" else 1
+                # 阿里云：月度最多 9 期，满一年要用 PriceUnit=Year
+                if it.get("unit") == "年":
+                    period, price_unit = 1, "Year"
+                else:
+                    period, price_unit = 1, "Month"
                 spec = {
                     "InstanceType": hit,
                     "ImageId": image_id,
                     "Period": period,
-                    "PriceUnit": "Month",
+                    "PriceUnit": price_unit,
                     "Amount": 1,
+                    "SystemDisk.Category": "cloud_essd",
+                    "SystemDisk.Size": int(it.get("disk") or 40),
                 }
                 print("2) 询价 %s（%s）…" % (name, hit), end=" ")
                 r = cloud_api.query("aliyun", {"access_key_id": ak, "access_key_secret": sk, "region": region}, spec)

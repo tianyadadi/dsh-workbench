@@ -168,13 +168,15 @@ def aliyun_price(cfg: dict, spec: dict, timeout: int = TIMEOUT) -> dict:
     }
 
 
-def aliyun_images(cfg: dict, limit: int = 10) -> list:
-    """列系统镜像（拿询价要用的 ImageId）。"""
+def aliyun_images(cfg: dict, limit: int = 20) -> list:
+    """列系统镜像（拿询价要用的 ImageId），优先 Linux（Windows 会加授权费）。"""
     d = aliyun_call(cfg, "DescribeImages", "2014-05-26",
                     {"ImageOwnerAlias": "system", "Limit": max(1, min(limit, 100))})
     imgs = (d.get("Images") or {}).get("Image") or []
-    return [{"id": x.get("ImageId"), "name": x.get("OSName") or x.get("ImageName") or ""}
-            for x in imgs if x.get("ImageId")]
+    out = [{"id": x.get("ImageId"), "name": x.get("OSName") or x.get("ImageName") or ""}
+           for x in imgs if x.get("ImageId")]
+    linux = [x for x in out if "linux" in x["name"].lower() or "ubuntu" in x["name"].lower()]
+    return linux or out
 
 
 # ---------------------------------------------------------------- 华为云

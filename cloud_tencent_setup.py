@@ -102,7 +102,8 @@ def main() -> int:
     for v in data.get("vendors", []):
         if v.get("id") != "tencent":
             continue
-        for seg in ("personal", "enterprise"):
+        # 只对 CVM 询价：轻量应用服务器是 Lighthouse 产品，CVM 的询价接口查不出它的价
+        for seg in ("enterprise",):
             for it in v.get(seg, []):
                 name = it.get("name", "")
                 hit = None
