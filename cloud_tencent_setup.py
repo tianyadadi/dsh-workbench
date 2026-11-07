@@ -102,7 +102,30 @@ def main() -> int:
     for v in data.get("vendors", []):
         if v.get("id") != "tencent":
             continue
-        # 只对 CVM 询价：轻量应用服务器是 Lighthouse 产品，CVM 的询价接口查不出它的价
+
+        # 轻量档：Lighthouse DescribeBundles 直接带价格（元/月）
+        print("3) 轻量应用服务器标准价（Lighthouse DescribeBundles）…")
+        try:
+            bundles = cloud_api.tencent_lh_bundles({"secret_id": sid, "secret_key": skey, "region": region})
+        except Exception as e:  # noqa: BLE001
+            print("   失败：%s" % str(e)[:80])
+            bundles = []
+        for it in v.get("personal", []):
+            cpu, mem = it.get("cpu"), it.get("mem")
+            cands = [b for b in bundles
+                     if b.get("cpu") == cpu and abs(float(b.get("mem") or 0) - float(mem or 0)) < 0.01
+                     and b.get("price")]
+            if not cands:
+                print("   %s：没找到同配置套餐" % it.get("name"))
+                continue
+            # 带宽最接近的那个
+            p = min(cands, key=lambda x: abs(float(x.get("bw") or 0) - float(it.get("bw") or 0)))
+            it["official_price"] = float(p["price"])
+            it["official_note"] = "Lighthouse %s" % p["id"]
+            changed += 1
+            print("   %s → %.0f 元/月（%s）" % (it.get("name"), it["official_price"], p["id"]))
+
+        # 企业档：CVM 询价
         for seg in ("enterprise",):
             for it in v.get(seg, []):
                 name = it.get("name", "")

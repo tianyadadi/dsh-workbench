@@ -143,7 +143,9 @@
           "renew": 180,
           "region": "广州",
           "note": "新用户首年",
-          "url": "https://cloud.tencent.com/product/lighthouse"
+          "url": "https://cloud.tencent.com/product/lighthouse",
+          "official_price": 48.0,
+          "official_note": "Lighthouse bundle_starter_mc_med2_02"
         },
         {
           "name": "轻量应用服务器 2核4G",
@@ -156,7 +158,9 @@
           "renew": 320,
           "region": "广州",
           "note": "新用户首年",
-          "url": "https://cloud.tencent.com/product/lighthouse"
+          "url": "https://cloud.tencent.com/product/lighthouse",
+          "official_price": 65.0,
+          "official_note": "Lighthouse bundle_starter_mc_med4_01"
         },
         {
           "name": "轻量应用服务器 4核8G",
@@ -169,7 +173,9 @@
           "renew": 900,
           "region": "广州",
           "note": "新用户首年",
-          "url": "https://cloud.tencent.com/product/lighthouse"
+          "url": "https://cloud.tencent.com/product/lighthouse",
+          "official_price": 330.0,
+          "official_note": "Lighthouse bundle_ai_mc_lg8_01"
         }
       ],
       "enterprise": [

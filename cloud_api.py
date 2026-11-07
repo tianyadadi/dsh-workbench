@@ -119,13 +119,22 @@ def tencent_images(cfg: dict, region: str | None = None, platform: str = "Ubuntu
 # ---------------------------------------------------------------- 腾讯云 Lighthouse（轻量）
 
 def tencent_lh_bundles(cfg: dict, region: str | None = None) -> list:
-    """轻量应用服务器的套餐列表。"""
+    """轻量应用服务器的套餐列表（自带价格，不用再询价）。"""
     region = region or cfg.get("region") or "ap-guangzhou"
-    r = tc3_call(cfg, "lighthouse", "DescribeBundles", "2020-03-24", region, {"Limit": 50})
-    return [{"id": b.get("BundleId"), "cpu": b.get("CPU"), "mem": b.get("Memory"),
-             "disk": b.get("SystemDiskSize"), "bw": b.get("InternetMaxBandwidthOut"),
-             "traffic": b.get("TrafficPackageSize")}
-            for b in (r.get("BundleSet") or [])]
+    r = tc3_call(cfg, "lighthouse", "DescribeBundles", "2020-03-24", region, {"Limit": 100})
+    out = []
+    for b in (r.get("BundleSet") or []):
+        inst = ((b.get("Price") or {}).get("InstancePrice") or {})
+        price = inst.get("DiscountPrice")
+        if price in (None, 0):
+            price = inst.get("OriginalBundlePrice") or inst.get("OriginalPrice")
+        out.append({
+            "id": b.get("BundleId"), "cpu": b.get("CPU"), "mem": b.get("Memory"),
+            "disk": b.get("SystemDiskSize"), "bw": b.get("InternetMaxBandwidthOut"),
+            "traffic": b.get("MonthlyTraffic"), "price": price,
+            "currency": inst.get("Currency"),
+        })
+    return out
 
 
 def tencent_lh_blueprints(cfg: dict, region: str | None = None) -> list:
