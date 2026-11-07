@@ -45,40 +45,31 @@ def _http(url: str, method: str = "GET", headers: dict | None = None,
 
 # ---------------------------------------------------------------- 腾讯云
 
-def tencent_inquiry(cfg: dict, spec: dict, timeout: int = TIMEOUT) -> dict:
-    """InquiryPriceRunInstances：只询价，不创建实例。"""
+def tc3_call(cfg: dict, service: str, action: str, version: str,
+             region: str, payload: dict, timeout: int = TIMEOUT) -> dict:
+    """腾讯云通用调用（TC3-HMAC-SHA256），返回 Response 字段。"""
     sid, skey = cfg.get("secret_id") or "", cfg.get("secret_key") or ""
     if not sid or not skey:
         raise RuntimeError("未配置 secret_id / secret_key")
 
-    host = "cvm.tencentcloudapi.com"
-    service = "cvm"
-    action = "InquiryPriceRunInstances"
-    version = "2017-03-12"
-    region = cfg.get("region") or "ap-guangzhou"
-    payload = json.dumps(spec, ensure_ascii=False)
-
+    host = "%s.tencentcloudapi.com" % service
+    payload_text = json.dumps(payload, ensure_ascii=False)
     ts = int(time.time())
     date = time.strftime("%Y-%m-%d", time.gmtime(ts))
     ct = "application/json; charset=utf-8"
     canonical_headers = "content-type:%s\nhost:%s\nx-tc-action:%s\n" % (ct, host, action.lower())
     signed_headers = "content-type;host;x-tc-action"
-    hashed_payload = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    hashed_payload = hashlib.sha256(payload_text.encode("utf-8")).hexdigest()
     canonical_request = "POST\n/\n\n%s\n%s\n%s" % (canonical_headers, signed_headers, hashed_payload)
     scope = "%s/%s/tc3_request" % (date, service)
     string_to_sign = "TC3-HMAC-SHA256\n%d\n%s\n%s" % (
         ts, scope, hashlib.sha256(canonical_request.encode("utf-8")).hexdigest())
-
-    def _h(key: bytes, msg: str) -> bytes:
-        return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
-
-    k_date = _h(("TC3" + skey).encode("utf-8"), date)
-    k_service = _h(k_date, service)
-    k_signing = _h(k_service, "tc3_request")
+    k_date = hmac.new(("TC3" + skey).encode("utf-8"), date.encode("utf-8"), hashlib.sha256).digest()
+    k_service = hmac.new(k_date, service.encode("utf-8"), hashlib.sha256).digest()
+    k_signing = hmac.new(k_service, b"tc3_request", hashlib.sha256).digest()
     signature = hmac.new(k_signing, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
     authorization = ("TC3-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s"
                      % (sid, scope, signed_headers, signature))
-
     headers = {
         "Authorization": authorization,
         "Content-Type": ct,
@@ -87,10 +78,18 @@ def tencent_inquiry(cfg: dict, spec: dict, timeout: int = TIMEOUT) -> dict:
         "X-TC-Timestamp": str(ts),
         "X-TC-Region": region,
     }
-    d = _http("https://" + host, "POST", headers, payload.encode("utf-8"), timeout)
+    d = _http("https://" + host, "POST", headers, payload_text.encode("utf-8"), timeout)
     resp = d.get("Response") or {}
     if resp.get("Error"):
         raise RuntimeError("%s: %s" % (resp["Error"].get("Code"), resp["Error"].get("Message")))
+    return resp
+
+
+def tencent_inquiry(cfg: dict, spec: dict, timeout: int = TIMEOUT) -> dict:
+    """InquiryPriceRunInstances：只询价，不创建实例。"""
+    region = cfg.get("region") or "ap-guangzhou"
+    resp = tc3_call(cfg, "cvm", "InquiryPriceRunInstances", "2017-03-12",
+                    region, spec, timeout=timeout)
     p = resp.get("Price") or {}
     inst = p.get("InstancePrice") or {}
     bw = p.get("BandwidthPrice") or {}
@@ -101,6 +100,15 @@ def tencent_inquiry(cfg: dict, spec: dict, timeout: int = TIMEOUT) -> dict:
         "unit": inst.get("ChargeUnit"),
         "raw": p,
     }
+
+
+def tencent_images(cfg: dict, region: str | None = None, platform: str = "Ubuntu") -> list:
+    """列公共镜像（拿询价要用的 ImageId）。"""
+    region = region or cfg.get("region") or "ap-guangzhou"
+    resp = tc3_call(cfg, "cvm", "DescribeImages", "2017-03-12", region,
+                    {"ImageType": "PUBLIC_IMAGE", "Platform": platform, "Limit": 10})
+    return [{"id": x.get("ImageId"), "name": x.get("ImageName")}
+            for x in (resp.get("ImageSet") or [])]
 
 
 # ---------------------------------------------------------------- 阿里云
