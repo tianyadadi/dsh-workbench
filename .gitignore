@@ -25,3 +25,6 @@ Thumbs.db
 _campus*.md
 _*.js
 _*.py
+
+# Graphify 本地图谱产物（可随时 graphify extract 重建）
+graphify-out/
