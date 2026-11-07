@@ -1,0 +1,468 @@
+{
+  "version": 1,
+  "checked_at": "2026-11-08",
+  "note": "参考价，人工核对官网整理；活动价随时变，下单前以官网为准",
+  "vendors": [
+    {
+      "id": "aliyun",
+      "name": "阿里云",
+      "color": "#ff6a00",
+      "site": "https://www.aliyun.com/product/swas",
+      "enterprise_site": "https://www.aliyun.com/product/ecs",
+      "personal": [
+        {
+          "name": "轻量应用服务器 2核2G",
+          "cpu": 2,
+          "mem": 2,
+          "disk": 40,
+          "bw": 3,
+          "price": 82,
+          "unit": "年",
+          "renew": 108,
+          "region": "华东1",
+          "note": "新用户首年",
+          "url": "https://www.aliyun.com/product/swas"
+        },
+        {
+          "name": "轻量应用服务器 2核4G",
+          "cpu": 2,
+          "mem": 4,
+          "disk": 60,
+          "bw": 4,
+          "price": 199,
+          "unit": "年",
+          "renew": 288,
+          "region": "华东1",
+          "note": "新用户首年",
+          "url": "https://www.aliyun.com/product/swas"
+        },
+        {
+          "name": "轻量应用服务器 4核8G",
+          "cpu": 4,
+          "mem": 8,
+          "disk": 80,
+          "bw": 5,
+          "price": 599,
+          "unit": "年",
+          "renew": 888,
+          "region": "华东1",
+          "note": "新用户首年",
+          "url": "https://www.aliyun.com/product/swas"
+        }
+      ],
+      "enterprise": [
+        {
+          "name": "ECS 通用型 g7 2核8G",
+          "cpu": 2,
+          "mem": 8,
+          "disk": 40,
+          "bw": 5,
+          "price": 210,
+          "unit": "月",
+          "renew": null,
+          "region": "华东1",
+          "note": "包年约 2520 元",
+          "url": "https://www.aliyun.com/product/ecs"
+        },
+        {
+          "name": "ECS 计算型 c7 4核8G",
+          "cpu": 4,
+          "mem": 8,
+          "disk": 40,
+          "bw": 5,
+          "price": 320,
+          "unit": "月",
+          "renew": null,
+          "region": "华东1",
+          "note": "包年约 3840 元",
+          "url": "https://www.aliyun.com/product/ecs"
+        },
+        {
+          "name": "ECS 通用型 g7 4核16G",
+          "cpu": 4,
+          "mem": 16,
+          "disk": 40,
+          "bw": 5,
+          "price": 420,
+          "unit": "月",
+          "renew": null,
+          "region": "华东1",
+          "note": "包年约 5040 元",
+          "url": "https://www.aliyun.com/product/ecs"
+        }
+      ]
+    },
+    {
+      "id": "tencent",
+      "name": "腾讯云",
+      "color": "#006eff",
+      "site": "https://cloud.tencent.com/product/lighthouse",
+      "enterprise_site": "https://cloud.tencent.com/product/cvm",
+      "personal": [
+        {
+          "name": "轻量应用服务器 2核2G",
+          "cpu": 2,
+          "mem": 2,
+          "disk": 40,
+          "bw": 4,
+          "price": 99,
+          "unit": "年",
+          "renew": 180,
+          "region": "广州",
+          "note": "新用户首年",
+          "url": "https://cloud.tencent.com/product/lighthouse"
+        },
+        {
+          "name": "轻量应用服务器 2核4G",
+          "cpu": 2,
+          "mem": 4,
+          "disk": 60,
+          "bw": 5,
+          "price": 199,
+          "unit": "年",
+          "renew": 320,
+          "region": "广州",
+          "note": "新用户首年",
+          "url": "https://cloud.tencent.com/product/lighthouse"
+        },
+        {
+          "name": "轻量应用服务器 4核8G",
+          "cpu": 4,
+          "mem": 8,
+          "disk": 80,
+          "bw": 6,
+          "price": 599,
+          "unit": "年",
+          "renew": 900,
+          "region": "广州",
+          "note": "新用户首年",
+          "url": "https://cloud.tencent.com/product/lighthouse"
+        }
+      ],
+      "enterprise": [
+        {
+          "name": "CVM 标准型 S5 2核8G",
+          "cpu": 2,
+          "mem": 8,
+          "disk": 40,
+          "bw": 5,
+          "price": 190,
+          "unit": "月",
+          "renew": null,
+          "region": "广州",
+          "note": "包年约 2280 元",
+          "url": "https://cloud.tencent.com/product/cvm"
+        },
+        {
+          "name": "CVM 标准型 S5 4核8G",
+          "cpu": 4,
+          "mem": 8,
+          "disk": 40,
+          "bw": 5,
+          "price": 300,
+          "unit": "月",
+          "renew": null,
+          "region": "广州",
+          "note": "包年约 3600 元",
+          "url": "https://cloud.tencent.com/product/cvm"
+        },
+        {
+          "name": "CVM 标准型 S5 4核16G",
+          "cpu": 4,
+          "mem": 16,
+          "disk": 40,
+          "bw": 5,
+          "price": 410,
+          "unit": "月",
+          "renew": null,
+          "region": "广州",
+          "note": "包年约 4920 元",
+          "url": "https://cloud.tencent.com/product/cvm"
+        }
+      ]
+    },
+    {
+      "id": "huawei",
+      "name": "华为云",
+      "color": "#c7000b",
+      "site": "https://www.huaweicloud.com/product/hecs-light.html",
+      "enterprise_site": "https://www.huaweicloud.com/product/ecs.html",
+      "personal": [
+        {
+          "name": "云耀云服务器 2核2G",
+          "cpu": 2,
+          "mem": 2,
+          "disk": 40,
+          "bw": 3,
+          "price": 98,
+          "unit": "年",
+          "renew": 150,
+          "region": "华北-北京",
+          "note": "新用户首年",
+          "url": "https://www.huaweicloud.com/product/hecs-light.html"
+        },
+        {
+          "name": "云耀云服务器 2核4G",
+          "cpu": 2,
+          "mem": 4,
+          "disk": 60,
+          "bw": 4,
+          "price": 199,
+          "unit": "年",
+          "renew": 300,
+          "region": "华北-北京",
+          "note": "新用户首年",
+          "url": "https://www.huaweicloud.com/product/hecs-light.html"
+        },
+        {
+          "name": "云耀云服务器 4核8G",
+          "cpu": 4,
+          "mem": 8,
+          "disk": 80,
+          "bw": 5,
+          "price": 699,
+          "unit": "年",
+          "renew": 1000,
+          "region": "华北-北京",
+          "note": "新用户首年",
+          "url": "https://www.huaweicloud.com/product/hecs-light.html"
+        }
+      ],
+      "enterprise": [
+        {
+          "name": "ECS 通用型 S6 2核8G",
+          "cpu": 2,
+          "mem": 8,
+          "disk": 40,
+          "bw": 5,
+          "price": 205,
+          "unit": "月",
+          "renew": null,
+          "region": "华北-北京",
+          "note": "包年约 2460 元",
+          "url": "https://www.huaweicloud.com/product/ecs.html"
+        },
+        {
+          "name": "ECS 通用型 S6 4核8G",
+          "cpu": 4,
+          "mem": 8,
+          "disk": 40,
+          "bw": 5,
+          "price": 330,
+          "unit": "月",
+          "renew": null,
+          "region": "华北-北京",
+          "note": "包年约 3960 元",
+          "url": "https://www.huaweicloud.com/product/ecs.html"
+        },
+        {
+          "name": "ECS 通用型 S6 4核16G",
+          "cpu": 4,
+          "mem": 16,
+          "disk": 40,
+          "bw": 5,
+          "price": 450,
+          "unit": "月",
+          "renew": null,
+          "region": "华北-北京",
+          "note": "包年约 5400 元",
+          "url": "https://www.huaweicloud.com/product/ecs.html"
+        }
+      ]
+    },
+    {
+      "id": "jdcloud",
+      "name": "京东云",
+      "color": "#e1251b",
+      "site": "https://www.jdcloud.com/cn/products/lighthouse",
+      "enterprise_site": "https://www.jdcloud.com/cn/products/vm",
+      "personal": [
+        {
+          "name": "轻量云主机 2核2G",
+          "cpu": 2,
+          "mem": 2,
+          "disk": 40,
+          "bw": 3,
+          "price": 68,
+          "unit": "年",
+          "renew": 128,
+          "region": "华北-北京",
+          "note": "新用户首年",
+          "url": "https://www.jdcloud.com/cn/products/lighthouse"
+        },
+        {
+          "name": "轻量云主机 2核4G",
+          "cpu": 2,
+          "mem": 4,
+          "disk": 60,
+          "bw": 4,
+          "price": 168,
+          "unit": "年",
+          "renew": 268,
+          "region": "华北-北京",
+          "note": "新用户首年",
+          "url": "https://www.jdcloud.com/cn/products/lighthouse"
+        }
+      ],
+      "enterprise": [
+        {
+          "name": "云主机 通用型 2核8G",
+          "cpu": 2,
+          "mem": 8,
+          "disk": 40,
+          "bw": 5,
+          "price": 180,
+          "unit": "月",
+          "renew": null,
+          "region": "华北-北京",
+          "note": "包年约 2160 元",
+          "url": "https://www.jdcloud.com/cn/products/vm"
+        },
+        {
+          "name": "云主机 通用型 4核8G",
+          "cpu": 4,
+          "mem": 8,
+          "disk": 40,
+          "bw": 5,
+          "price": 290,
+          "unit": "月",
+          "renew": null,
+          "region": "华北-北京",
+          "note": "包年约 3480 元",
+          "url": "https://www.jdcloud.com/cn/products/vm"
+        }
+      ]
+    },
+    {
+      "id": "ucloud",
+      "name": "UCloud",
+      "color": "#00b2f0",
+      "site": "https://www.ucloud.cn/site/price.html",
+      "enterprise_site": "https://www.ucloud.cn/site/price.html",
+      "personal": [
+        {
+          "name": "轻量云主机 2核2G",
+          "cpu": 2,
+          "mem": 2,
+          "disk": 40,
+          "bw": 3,
+          "price": 88,
+          "unit": "年",
+          "renew": 158,
+          "region": "北京",
+          "note": "新用户首年",
+          "url": "https://www.ucloud.cn/site/price.html"
+        },
+        {
+          "name": "轻量云主机 2核4G",
+          "cpu": 2,
+          "mem": 4,
+          "disk": 60,
+          "bw": 4,
+          "price": 188,
+          "unit": "年",
+          "renew": 288,
+          "region": "北京",
+          "note": "新用户首年",
+          "url": "https://www.ucloud.cn/site/price.html"
+        }
+      ],
+      "enterprise": [
+        {
+          "name": "云主机 通用型 2核8G",
+          "cpu": 2,
+          "mem": 8,
+          "disk": 40,
+          "bw": 5,
+          "price": 195,
+          "unit": "月",
+          "renew": null,
+          "region": "北京",
+          "note": "包年约 2340 元",
+          "url": "https://www.ucloud.cn/site/price.html"
+        },
+        {
+          "name": "云主机 通用型 4核8G",
+          "cpu": 4,
+          "mem": 8,
+          "disk": 40,
+          "bw": 5,
+          "price": 310,
+          "unit": "月",
+          "renew": null,
+          "region": "北京",
+          "note": "包年约 3720 元",
+          "url": "https://www.ucloud.cn/site/price.html"
+        }
+      ]
+    },
+    {
+      "id": "baidu",
+      "name": "百度智能云",
+      "color": "#2932e1",
+      "site": "https://cloud.baidu.com/product/bcc.html",
+      "enterprise_site": "https://cloud.baidu.com/product/bcc.html",
+      "personal": [
+        {
+          "name": "轻量应用服务器 2核2G",
+          "cpu": 2,
+          "mem": 2,
+          "disk": 40,
+          "bw": 3,
+          "price": 92,
+          "unit": "年",
+          "renew": 168,
+          "region": "北京",
+          "note": "新用户首年",
+          "url": "https://cloud.baidu.com/product/bcc.html"
+        },
+        {
+          "name": "轻量应用服务器 2核4G",
+          "cpu": 2,
+          "mem": 4,
+          "disk": 60,
+          "bw": 4,
+          "price": 198,
+          "unit": "年",
+          "renew": 298,
+          "region": "北京",
+          "note": "新用户首年",
+          "url": "https://cloud.baidu.com/product/bcc.html"
+        }
+      ],
+      "enterprise": [
+        {
+          "name": "云服务器 通用型 2核8G",
+          "cpu": 2,
+          "mem": 8,
+          "disk": 40,
+          "bw": 5,
+          "price": 200,
+          "unit": "月",
+          "renew": null,
+          "region": "北京",
+          "note": "包年约 2400 元",
+          "url": "https://cloud.baidu.com/product/bcc.html"
+        },
+        {
+          "name": "云服务器 通用型 4核8G",
+          "cpu": 4,
+          "mem": 8,
+          "disk": 40,
+          "bw": 5,
+          "price": 315,
+          "unit": "月",
+          "renew": null,
+          "region": "北京",
+          "note": "包年约 3780 元",
+          "url": "https://cloud.baidu.com/product/bcc.html"
+        }
+      ]
+    }
+  ],
+  "azure": {
+    "note": "Azure 官方零售价 API 实时拉取（USD，按 7.2 汇率折算人民币参考）",
+    "region": "eastasia",
+    "api": "https://prices.azure.com/api/retail/prices"
+  }
+}

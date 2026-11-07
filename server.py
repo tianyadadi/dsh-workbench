@@ -1208,6 +1208,14 @@ def _gh_alert(hour_n) -> dict | None:
     return {"threshold": GH_ALERT_HOUR, "value": hour_n}
 
 
+# ── 云服务器比价（数据层在同目录 cloud_price.py）──────────────────
+try:
+    from cloud_price import scan_cloudprice  # noqa: E402
+except Exception as _cp_err:  # noqa: BLE001
+    def scan_cloudprice():
+        return {"ok": False, "error": "cloud_price.py 加载失败：%s" % _cp_err}
+
+
 # 面板注册表：加一行就多一个面板（key 对应 /api/<key>）
 PANELS = [
     ("overview", "概览", scan_overview),
@@ -1219,6 +1227,7 @@ PANELS = [
     ("artcraft", "ArtCraft", scan_artcraft),
     ("tools", "工具开销", scan_tools),
     ("github", "GitHub 新增", scan_github),
+    ("cloudprice", "云服务器比价", scan_cloudprice),
 ]
 
 # 核心插件不允许从面板里关掉，否则 DSH 起不来

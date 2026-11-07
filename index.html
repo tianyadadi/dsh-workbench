@@ -919,6 +919,66 @@ header{z-index:1000}
 .gh-lang-bar{flex:1;height:7px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden}
 .gh-lang-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:4px}
 .gh-lang-val{width:38px;text-align:right;color:var(--accent);font-family:Consolas,monospace}
+
+/* ── 云服务器比价 ─────────────────────────────────────────────── */
+.cp-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--dim);margin-bottom:14px}
+.cp-badge{font-size:11px;padding:2px 9px;border-radius:20px;border:1px solid var(--line);color:var(--dim)}
+.cp-badge.live{color:var(--ok);border-color:rgba(61,220,151,.4);background:rgba(61,220,151,.08)}
+.cp-rec{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+@media (max-width:980px){.cp-rec{grid-template-columns:1fr}}
+.cp-rec-col{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.cp-rec-title{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.cp-rec-title .dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.cp-rec-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dashed rgba(120,150,180,.12);font-size:13px}
+.cp-rec-item:last-child{border-bottom:0}
+.cp-rec-item .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cp-rec-item .pr{color:var(--accent);font-weight:600;font-family:Consolas,monospace}
+.cp-reason{font-size:10px;padding:1px 7px;border-radius:10px;background:rgba(77,208,225,.12);color:var(--accent);flex:none}
+.cp-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.cp-tabs{display:flex;gap:4px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:9px;padding:3px}
+.cp-tabs button{border:0;background:transparent;color:var(--dim);font-size:12px;padding:5px 14px;border-radius:7px;cursor:pointer;transition:.14s}
+.cp-tabs button:hover{color:var(--text)}
+.cp-tabs button.on{background:rgba(77,208,225,.16);color:var(--accent)}
+.cp-sel{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:8px;color:var(--text);
+  padding:5px 9px;font-size:12px;font-family:inherit;color-scheme:dark}
+.cp-sel:focus{outline:none;border-color:var(--accent)}
+.cp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:14px;margin-bottom:18px}
+.cp-card{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:14px 16px 12px;cursor:pointer;transition:.16s;overflow:hidden}
+.cp-card:hover{transform:translateY(-2px);border-color:rgba(120,170,200,.45);box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.cp-card.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset,0 8px 24px rgba(77,208,225,.12)}
+.cp-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--vc,var(--accent))}
+.cp-card .vname{font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px}
+.cp-card .vname b{color:var(--text);font-size:13px}
+.cp-card .cp-name{font-size:13px;margin:7px 0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cp-spec{display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--dim);margin:6px 0 8px}
+.cp-spec span{background:rgba(255,255,255,.045);border-radius:6px;padding:2px 7px}
+.cp-price-row{display:flex;align-items:baseline;gap:6px;margin-top:2px}
+.cp-price{font-size:26px;font-weight:700;color:var(--accent);font-family:Consolas,monospace}
+.cp-price small{font-size:12px;color:var(--dim);font-weight:400;font-family:inherit}
+.cp-month{font-size:11px;color:var(--dim)}
+.cp-renew{font-size:11px;color:var(--warn);margin-top:2px}
+.cp-score{margin-top:9px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--dim)}
+.cp-score .bar{flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden}
+.cp-score .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:3px}
+.cp-check{position:absolute;right:12px;top:12px;width:18px;height:18px;border-radius:6px;
+  border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:11px;color:transparent}
+.cp-card.sel .cp-check{background:var(--accent);border-color:var(--accent);color:#04121a}
+.cp-compare{margin-top:6px}
+.cp-cmp-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;font-size:13px}
+.cp-cmp-head b{color:var(--accent)}
+.cp-cmp-table{width:100%;border-collapse:collapse;font-size:12px}
+.cp-cmp-table th,.cp-cmp-table td{padding:8px 10px;border-bottom:1px solid rgba(120,150,180,.1);text-align:left}
+.cp-cmp-table th{color:var(--dim);font-weight:500;white-space:nowrap}
+.cp-cmp-table td{color:var(--text)}
+.cp-cmp-table tr:hover td{background:rgba(255,255,255,.02)}
+.cp-cmp-table .best{color:var(--ok);font-weight:600}
+.cp-azure{margin-top:16px}
+.cp-az-row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed rgba(120,150,180,.1);font-size:12px}
+.cp-az-row:last-child{border-bottom:0}
+.cp-az-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cp-az-price{flex:none;color:var(--accent);font-family:Consolas,monospace}
+.cp-note{font-size:11px;color:var(--dim);line-height:1.8;margin-top:12px}
 </style>
 <script src="lib/three.min.js"></script>
 <script src="galaxy.js"></script>
@@ -1117,6 +1177,7 @@ async function load(key){
   if(key==='artcraft') return renderArtcraft(data);
   if(key==='tools')    return renderTools(data);
   if(key==='github')   return renderGithub(data);
+  if(key==='cloudprice') return renderCloudprice(data);
   return renderGeneric(key, data);   // 扩展面板：后端加一行，前端自动出页面
 }
 
@@ -2392,6 +2453,191 @@ function ghList(items){
         <span class="mono">${hm(x.created)}</span>
       </div>
     </div>`).join('');
+}
+
+/* ---------- 云服务器比价（参考价 + Azure 实时） ---------- */
+let cpState = { segment: 'personal', cpu: 'all', sort: 'price', sel: [], data: null };
+
+function cpKey(r){ return r.vendor_id + '|' + r.segment + '|' + r.name; }
+
+function renderCloudprice(d){
+  cpState.data = d;
+  cpState.sel = [];
+  if(!d || d.ok === false){
+    $('#main').innerHTML = `<h2>云服务器比价</h2>
+      <div class="card"><div class="big">加载失败</div>
+      <div class="sub">${esc((d && d.error) || '未知错误')}</div></div>`;
+    return;
+  }
+  $('#main').innerHTML = `
+    <h2>云服务器比价 <small>参考价 + Azure 实时 · 个人 / 企业</small></h2>
+    <div class="cp-bar">
+      <span class="cp-badge">参考价核对 ${esc(d.checked_at || '—')}</span>
+      <span class="cp-badge live">Azure 实时 ${d.azure && d.azure.ok ? '已连接' : '未连上'}</span>
+      <button class="gh-switch" id="cpRefresh">刷新</button>
+      <span style="margin-left:auto">${esc(d.note || '')}</span>
+    </div>
+    <div class="cp-rec">
+      <div class="cp-rec-col">
+        <div class="cp-rec-title"><i class="dot"></i>个人推荐（2 核档）</div>
+        <div id="cpRecPersonal"></div>
+      </div>
+      <div class="cp-rec-col">
+        <div class="cp-rec-title"><i class="dot"></i>企业推荐（通用型）</div>
+        <div id="cpRecEnterprise"></div>
+      </div>
+    </div>
+    <div class="cp-filters">
+      <div class="cp-tabs">
+        <button data-seg="personal" class="on">个人</button>
+        <button data-seg="enterprise">企业</button>
+      </div>
+      <select class="cp-sel" id="cpCpu">
+        <option value="all">CPU 不限</option>
+        <option value="2">2 核</option>
+        <option value="4">4 核</option>
+      </select>
+      <select class="cp-sel" id="cpSort">
+        <option value="price">按价格从低到高</option>
+        <option value="score">按综合评分</option>
+      </select>
+      <span id="cpCount" style="margin-left:auto;font-size:12px;color:var(--dim)"></span>
+    </div>
+    <div class="cp-grid" id="cpGrid"></div>
+    <div class="card cp-compare">
+      <div class="cp-cmp-head">
+        <span>对比栏 <b id="cpSelCount">0</b>/4</span>
+        <button class="gh-switch" id="cpClear">清空</button>
+        <span style="color:var(--dim);font-size:11px">点卡片勾选配置，最多 4 个</span>
+      </div>
+      <div id="cpCmpTable"></div>
+    </div>
+    <div class="card cp-azure">
+      <h3>Azure 实时价 <small style="font-weight:400;color:var(--dim)">eastasia · Linux VM · USD→CNY ${(d.azure && d.azure.fx) || 7.2}</small></h3>
+      <div id="cpAzure"></div>
+    </div>
+    <div class="cp-note">
+      <b>个人 vs 企业</b>：个人档是轻量应用服务器（固定带宽、开箱即用，适合博客 / 小项目 / 学习）；
+      企业档是 ECS / CVM 通用型（可弹性伸缩、有 SLA 和工单，适合生产 / 合规 / 多实例）。
+      个人档够用就别上企业档 —— 同配置月成本通常贵 2~4 倍。<br>
+      <b>数据口径</b>：国内厂商没有公开价格 API，这里是人工资讯核对后的参考价，
+      活动价 / 新用户价随时会变，<b style="color:var(--warn)">下单前一定点「官网」核对</b>；
+      Azure 走官方零售价 API 实时拉取，按 7.2 折算人民币。
+      续费价指首年优惠结束后的续费单价，是最容易被忽略的隐形成本。
+    </div>`;
+
+  $('#cpRefresh').onclick = () => load('cloudprice');
+  document.querySelectorAll('.cp-tabs button').forEach(b => {
+    b.onclick = () => {
+      cpState.segment = b.dataset.seg;
+      cpState.sel = [];
+      // 个人档默认按价格（预算敏感），企业档默认按评分（能力优先）
+      cpState.sort = b.dataset.seg === 'personal' ? 'price' : 'score';
+      const st = document.getElementById('cpSort');
+      if(st) st.value = cpState.sort;
+      document.querySelectorAll('.cp-tabs button').forEach(x => x.classList.toggle('on', x === b));
+      cpPaint(cpState.data);
+    };
+  });
+  $('#cpCpu').onchange = (e) => { cpState.cpu = e.target.value; cpPaint(cpState.data); };
+  $('#cpSort').onchange = (e) => { cpState.sort = e.target.value; cpPaint(cpState.data); };
+  $('#cpClear').onclick = () => { cpState.sel = []; cpPaint(cpState.data); };
+  // 支持分享对比链接：?panel=cloudprice&cmp=aliyun|personal|xxx,tencent|personal|yyy
+  const _cmp = new URLSearchParams(location.search).get('cmp');
+  if(_cmp){
+    cpState.sel = _cmp.split(',').map(s => s.trim()).filter(Boolean).slice(0, 4);
+  }
+  cpPaint(d);
+}
+
+function cpToggle(key){
+  const i = cpState.sel.indexOf(key);
+  if(i >= 0) cpState.sel.splice(i, 1);
+  else if(cpState.sel.length < 4) cpState.sel.push(key);
+  cpPaint(cpState.data);
+}
+
+function cpPaint(d){
+  if(!d || d.ok === false) return;
+  const rows = (d.rows || []).filter(r => r.segment === cpState.segment)
+    .filter(r => cpState.cpu === 'all' || String(r.cpu) === cpState.cpu);
+  rows.sort((a, b) => cpState.sort === 'price'
+    ? (a.month || 9e9) - (b.month || 9e9)
+    : (b.total_score || 0) - (a.total_score || 0));
+
+  const grid = document.getElementById('cpGrid');
+  if(!grid) return;
+  grid.innerHTML = rows.map(r => {
+    const key = cpKey(r);
+    const on = cpState.sel.indexOf(key) >= 0;
+    return `<div class="cp-card${on ? ' sel' : ''}" data-key="${esc(key)}" style="--vc:${r.color}" onclick="cpToggle(this.dataset.key)">
+      <div class="cp-check">✓</div>
+      <div class="vname"><b style="color:${r.color}">${esc(r.vendor)}</b><span>${r.segment === 'personal' ? '个人' : '企业'}</span></div>
+      <div class="cp-name">${esc(r.name)}</div>
+      <div class="cp-spec"><span>${r.cpu} 核 ${r.mem}G</span><span>${r.disk || '—'}G 盘</span><span>${r.bw || '—'}M 带宽</span><span>${esc(r.region)}</span></div>
+      <div class="cp-price-row">
+        <span class="cp-price">¥${r.price}<small>/${r.unit}</small></span>
+        <span class="cp-month">≈ ¥${r.month}/月</span>
+        <a href="${esc(r.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
+           style="margin-left:auto;font-size:11px;color:var(--accent);text-decoration:none">官网 ↗</a>
+      </div>
+      ${r.renew ? `<div class="cp-renew">续费 ¥${r.renew}/${r.unit}</div>` : '<div class="cp-renew" style="opacity:.45">包年无续费溢价</div>'}
+      <div class="cp-score"><span>综合 ${r.total_score}</span><div class="bar"><i style="width:${Math.min(100, r.total_score)}%"></i></div></div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('cpCount').textContent = `${rows.length} 个配置`;
+  document.getElementById('cpSelCount').textContent = String(cpState.sel.length);
+
+  // 推荐
+  const rec = (seg) => {
+    const list = (d.recommend && d.recommend[seg]) || [];
+    return list.map(r => `<div class="cp-rec-item">
+      <span class="nm">${esc(r.vendor)} · ${esc(r.name)}</span>
+      <span class="pr">¥${r.price}/${r.unit}</span>
+      <span class="cp-reason">${esc(r.reason || '')}</span>
+    </div>`).join('') || '<div class="empty" style="font-size:12px;padding:8px">暂无</div>';
+  };
+  document.getElementById('cpRecPersonal').innerHTML = rec('personal');
+  document.getElementById('cpRecEnterprise').innerHTML = rec('enterprise');
+
+  // 对比表
+  const selRows = cpState.sel.map(k => (d.rows || []).find(r => cpKey(r) === k)).filter(Boolean);
+  const host = document.getElementById('cpCmpTable');
+  if(!selRows.length){
+    host.innerHTML = '<div class="empty" style="font-size:12px;padding:18px">勾选 2 个以上配置开始对比</div>';
+  } else {
+    const minMonth = Math.min(...selRows.map(r => r.month || 9e9));
+    const maxScore = Math.max(...selRows.map(r => r.total_score || 0));
+    const cell = (v, cls) => `<td class="${cls || ''}">${v}</td>`;
+    host.innerHTML = `<div style="overflow:auto"><table class="cp-cmp-table">
+      <tr><th>项目</th>${selRows.map(r => `<th style="color:${r.color}">${esc(r.vendor)}<br><span style="font-weight:400;font-size:11px">${esc(r.name)}</span></th>`).join('')}</tr>
+      <tr><th>价格</th>${selRows.map(r => cell(`¥${r.price}/${r.unit}`, r.month === minMonth ? 'best' : ''))}</tr>
+      <tr><th>折合月价</th>${selRows.map(r => cell(`¥${r.month}`, r.month === minMonth ? 'best' : ''))}</tr>
+      <tr><th>续费价</th>${selRows.map(r => cell(r.renew ? `¥${r.renew}` : '—'))}</tr>
+      <tr><th>配置</th>${selRows.map(r => cell(`${r.cpu}核 ${r.mem}G / ${r.disk}G`))}</tr>
+      <tr><th>带宽</th>${selRows.map(r => cell(`${r.bw} M`))}</tr>
+      <tr><th>地域</th>${selRows.map(r => cell(esc(r.region)))}</tr>
+      <tr><th>综合评分</th>${selRows.map(r => cell(r.total_score, r.total_score === maxScore ? 'best' : ''))}</tr>
+      <tr><th>官网</th>${selRows.map(r => cell(`<a href="${esc(r.url)}" target="_blank" rel="noopener">去核对</a>`))}</tr>
+    </table></div>`;
+  }
+
+  // Azure
+  const az = d.azure || {};
+  const azHost = document.getElementById('cpAzure');
+  if(azHost){
+    if(!az.ok){
+      azHost.innerHTML = `<div style="color:var(--dim);font-size:12px">Azure API 没连上：${esc(az.err || '')}</div>`;
+    } else if(!(az.items || []).length){
+      azHost.innerHTML = '<div style="color:var(--dim);font-size:12px">没有取到数据</div>';
+    } else {
+      azHost.innerHTML = (az.items || []).map(x => `<div class="cp-az-row">
+        <span class="cp-az-name">${esc(x.name)}</span>
+        <span class="cp-az-price">$${x.usd_hour}/时 · ¥${x.cny_month}/月</span>
+      </div>`).join('');
+    }
+  }
 }
 
 /* ---------- 通用：以后新加的面板自动渲染 ---------- */
