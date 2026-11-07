@@ -238,42 +238,36 @@ AWS 的 Price List 全量 9.1 GB，不抓。
 - 个人档够用就别上企业档，同配置月成本通常贵 2~4 倍
 - 活动价随时变，下单前点卡片上的「官网 ↗」核对
 
-### 接入三大云官方询价 API（可选）
+### 接入腾讯云 / 阿里云官方价（可选）
 
-三家都有「只询价、不下单、不收费」的官方接口：
+两家都有「只查价、不下单、不收费」的官方接口。华为云要额外开通 BSS 接口、参数也更绕，暂不接。
 
-| 厂商 | 接口 | 需要 |
+| 厂商 | 个人档（轻量） | 企业档（云服务器） |
 |---|---|---|
-| 腾讯云 | `InquiryPriceRunInstances` | SecretId / SecretKey（只读） |
-| 阿里云 | `DescribePrice` | AccessKeyId / AccessKeySecret（只读） |
-| 华为云 | `ListRateOnPeriodDetail` | AK / SK + 开通 BSS 读取权限 |
+| 腾讯云 | Lighthouse `DescribeBundles`（套餐自带价格） | CVM `InquiryPriceRunInstances` |
+| 阿里云 | SWAS `ListPlans`（自带 OriginPrice） | ECS `DescribePrice` |
 
-**配置两步**
+**配置**
 
 1. `config.json` 里填 `cloud_apis`（模板见 `config.example.json`），`enabled` 改 `true`
-2. `cloud_price_data.json` 对应配置项里补 `api_spec`，例如腾讯云：
+2. 跑对应向导，它会自动取镜像/套餐、逐条询价、回填 `api_spec`：
 
-```json
-{
-  "name": "轻量应用服务器 2核2G",
-  "api_spec": {
-    "Placement": { "Zone": "ap-guangzhou-3" },
-    "ImageId": "img-xxx",
-    "InstanceType": "S5.MEDIUM2",
-    "InstanceChargeType": "PREPAID",
-    "InstanceChargePrepaid": { "Period": 12 }
-  }
-}
+```bash
+python cloud_tencent_setup.py   # 腾讯云
+python cloud_aliyun_setup.py    # 阿里云
 ```
 
-刷新面板后，卡片上会多一行「官方询价 ¥xxx」。
+**权限**（子账号只读即可，不要给写权限）
+
+- 腾讯云：`QcloudCVMReadOnlyAccess` + `QcloudLighthouseReadOnlyAccess`
+- 阿里云：`AliyunECSReadOnlyAccess`（SWAS 的 ListPlans 一般同账号可读）
 
 **注意**
 
-- 返回的是**官方标准价**，通常不含新用户活动价，和「参考价」分开显示
-- 询价结果缓存 10 分钟，不会反复打接口
-- 签名逻辑已用假 AK 走通过（腾讯返回 `SecretIdNotFound`、阿里 `InvalidAccessKeyId`、华为 `Unauthorized`），
-  说明请求格式与签名算法是对的，只差真实 AK
+- 返回的是**官方标准价**，不含新用户活动价，和「参考价」分开显示
+- 轻量档显示成「官方标准 ¥x/月（Lighthouse/SWAS 套餐 ID）」，企业档显示「官方询价」
+- 询价结果缓存 10 分钟
+- `SecretId` / `SecretKey` 必须同一次创建，混搭会报 `SignatureFailure`
 
 ## 扩展面板
 
