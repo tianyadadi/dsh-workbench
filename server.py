@@ -636,11 +636,91 @@ def scan_tools() -> dict:
     return {"items": items, "total": total}
 
 
+# ── Agent 面板：读写 ~/.dsh/agents/（dsh-agent-hub 插件用的那份定义）──────────
+AGENTS_DIR = DSH_HOME / "agents"
+
+
+def _read_json_file(path, default):
+    try:
+        return json.loads(path.read_text("utf-8"))
+    except Exception:
+        return default
+
+
+def _write_json_file(path, obj):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(obj, ensure_ascii=False, indent=2), "utf-8")
+    tmp.replace(path)
+
+
+def scan_agents():
+    """列出所有 agent：启用状态、绑定技能、所属 persona 摘要。"""
+    agents_path = AGENTS_DIR / "agents.json"
+    ui_path = AGENTS_DIR / "ui.json"
+    cfg = _read_json_file(agents_path, {"version": 1, "agents": []})
+    ui = {"selectorVisible": True, **_read_json_file(ui_path, {})}
+    raw = cfg.get("agents", []) if isinstance(cfg, dict) else []
+    items = []
+    for a in raw:
+        if not isinstance(a, dict):
+            continue
+        items.append({
+            "id": str(a.get("id") or ""),
+            "name": str(a.get("name") or a.get("id") or ""),
+            "icon": str(a.get("icon") or ""),
+            "order": a.get("order") if isinstance(a.get("order"), (int, float)) else 100,
+            "enabled": a.get("enabled") is not False,
+            "description": str(a.get("description") or ""),
+            "skills": [str(s) for s in (a.get("skills") or [])],
+            "persona": str(a.get("persona") or ""),
+            "disabledTools": [str(t) for t in (a.get("disabledTools") or [])],
+        })
+    items.sort(key=lambda x: (x["order"], x["id"]))
+    return {
+        "ui": ui,
+        "agents": items,
+        "file": str(agents_path),
+        "exists": agents_path.exists(),
+        "total": len(items),
+        "active": sum(1 for i in items if i["enabled"]),
+        "hint": "改完在 DSH 里重载生效：让模型调用 agent_hub_reload，或重启 DSH",
+    }
+
+
+def toggle_agent(agent_id, enabled):
+    """启用/禁用一个 agent，写回 agents.json。"""
+    agents_path = AGENTS_DIR / "agents.json"
+    cfg = _read_json_file(agents_path, {"version": 1, "agents": []})
+    agents = cfg.get("agents", []) if isinstance(cfg, dict) else []
+    hit = None
+    for a in agents:
+        if isinstance(a, dict) and a.get("id") == agent_id:
+            a["enabled"] = bool(enabled)
+            hit = a
+            break
+    if hit is None:
+        return {"ok": False, "error": "没有这个 agent：%s" % agent_id}
+    _write_json_file(agents_path, {"version": 1, "agents": agents})
+    return {"ok": True, "id": agent_id, "enabled": bool(enabled), "needs_reload": True,
+            "hint": "已保存；在 DSH 里调用 agent_hub_reload 或重启 DSH 生效"}
+
+
+def set_agent_ui(selector_visible):
+    """输入栏 agent 选择器的开关。"""
+    ui_path = AGENTS_DIR / "ui.json"
+    ui = {"selectorVisible": True, **_read_json_file(ui_path, {})}
+    ui["selectorVisible"] = bool(selector_visible)
+    _write_json_file(ui_path, ui)
+    return {"ok": True, **ui}
+
+
 # 面板注册表：加一行就多一个面板（key 对应 /api/<key>）
 PANELS = [
     ("overview", "概览", scan_overview),
     ("plugins", "插件", scan_plugins),
     ("skills", "技能", scan_skills),
+    ("agents", "Agent", scan_agents),
     ("memory", "记忆", scan_memory),
     ("cost", "成本", scan_cost),
     ("artcraft", "ArtCraft", scan_artcraft),
@@ -1022,6 +1102,12 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path == "/api/plugins/toggle":
                 self._json(toggle_plugin(str(body.get("name") or ""), bool(body.get("enabled"))))
+                return
+            if path == "/api/agents/toggle":
+                self._json(toggle_agent(str(body.get("id") or ""), bool(body.get("enabled"))))
+                return
+            if path == "/api/agents/ui":
+                self._json(set_agent_ui(bool(body.get("selectorVisible"))))
                 return
             if path == "/api/plugin-config":
                 if str(body.get("mode") or "") == "save":

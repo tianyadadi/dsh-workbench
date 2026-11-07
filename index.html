@@ -1051,6 +1051,7 @@ async function load(key){
   if(my !== loadToken) return            // 期间又点过别的面板，这次结果直接丢掉
   if(key==='overview') return renderOverview(data);
   if(key==='plugins')  return renderPlugins(data);
+  if(key==='agents')   return renderAgents(data);
   if(key==='skills')   return renderSkills(data);
   if(key==='memory')   return renderMemory(data);
   if(key==='cost')     return renderCost(data);
@@ -1128,6 +1129,72 @@ async function loadAttention(){
         </div>`).join('')}
       <div style="color:var(--dim);font-size:11px;margin-top:6px">共 ${a.checks} 项检查 · ${esc(a.scanned_at)}</div>
     </div>`;
+}
+
+/* ---------- Agent ---------- */
+function renderAgents(d){
+  const agents = d.agents || [];
+  const ui = d.ui || {};
+  const visible = ui.selectorVisible !== false;
+  const cards = agents.map(a=>`
+    <div class="card" style="margin-bottom:10px;display:flex;gap:14px;align-items:flex-start">
+      <div style="font-size:24px;line-height:1.2;flex:none">${esc(a.icon||'◈')}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:14px">
+          ${esc(a.name)}
+          <span class="mono" style="color:var(--dim);font-size:11px;margin-left:6px">${esc(a.id)}</span>
+        </div>
+        <div style="color:var(--dim);font-size:12px;margin-top:3px;line-height:1.7">${esc(a.description||'—')}</div>
+        <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">
+          ${(a.skills||[]).map(s=>`<span class="chip">${esc(s)}</span>`).join('') || '<span style="color:var(--dim);font-size:11px">没绑技能</span>'}
+        </div>
+        ${a.persona?`<div style="margin-top:8px;color:var(--dim);font-size:11px;line-height:1.7;max-height:48px;overflow:hidden;border-left:2px solid var(--line);padding-left:8px">${esc(a.persona.slice(0,180))}</div>`:''}
+      </div>
+      <button class="sw ${a.enabled?'on':''}" data-toggle="${esc(a.id)}" data-on="${a.enabled?1:0}" style="flex:none">${a.enabled?'已启用':'已关闭'}</button>
+    </div>`).join('');
+
+  $('#main').innerHTML = `
+    <h2>Agent <small>${d.active||0}/${d.total||0} 启用 · 改完在 DSH 里重载生效</small></h2>
+    <div class="card" style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:13px">输入栏 Agent 选择器</div>
+        <div style="color:var(--dim);font-size:12px;margin-top:3px">关掉后输入框右侧那个切换按钮就隐藏，再打开就回来（每 5 秒同步一次，不用刷新页面）</div>
+      </div>
+      <button class="sw ${visible?'on':''}" id="agent-ui-btn" data-on="${visible?1:0}" style="flex:none">${visible?'显示中':'已隐藏'}</button>
+    </div>
+    ${cards || '<div class="empty">还没有 agent 定义</div>'}
+    <div style="margin-top:16px;color:var(--dim);font-size:12px;line-height:1.9">
+      · 定义文件：<span class="mono">${esc(d.file||'')}</span><br>
+      · 切换只在<b>会话第一轮开始前</b>有效（DSH 的硬限制），进行中的对话保持原组合<br>
+      · ${esc(d.hint||'')}
+    </div>`;
+
+  document.querySelectorAll('button[data-toggle]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const id = btn.dataset.toggle;
+      const on = btn.dataset.on === '1';
+      btn.disabled = true;
+      try{
+        const r = await fetch('/api/agents/toggle',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id,enabled:!on})});
+        const j = await r.json();
+        if(j.ok){ btn.dataset.on = on?'0':'1'; btn.className='sw '+(!on?'on':''); btn.textContent = !on?'已启用':'已关闭'; }
+        else alert(j.error||'保存失败');
+      }catch(e){ alert('请求失败'); }
+      finally{ btn.disabled = false; }
+    };
+  });
+
+  const uiBtn = $('#agent-ui-btn');
+  if(uiBtn) uiBtn.onclick = async ()=>{
+    const on = uiBtn.dataset.on === '1';
+    uiBtn.disabled = true;
+    try{
+      const r = await fetch('/api/agents/ui',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({selectorVisible:!on})});
+      const j = await r.json();
+      if(j.ok){ uiBtn.dataset.on = on?'0':'1'; uiBtn.className='sw '+(!on?'on':''); uiBtn.textContent = !on?'显示中':'已隐藏'; }
+    }catch(e){}
+    finally{ uiBtn.disabled = false; }
+  };
 }
 
 /* ---------- 插件 ---------- */
