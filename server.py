@@ -16,12 +16,17 @@
 from __future__ import annotations
 
 import argparse
+import datetime as _dt
 import json
 import os
 import re
 import sqlite3
 import sys
+import threading
 import time
+import urllib.parse
+import urllib.request
+from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -715,6 +720,494 @@ def set_agent_ui(selector_visible):
     return {"ok": True, **ui}
 
 
+# ── GitHub 新增仓库统计（工作台唯一联网面板）──────────────────────
+# 开关
+#   默认关闭。关闭时 scan_github 直接返回，不读缓存、不入队、不启动线程、不发请求；
+#   前端也不轮询。开启状态持久化在 config.json 的 "github_enabled"。
+# 口径
+#   · 新增仓库数 = Search API 的 total_count（只统计 public 仓库；私有/闭源 API 查不到，不做）
+#   · 上传者数   = 抽样 300 条仓库按 owner 去重，按去重率外推（估算值，不是精确值）
+# 数据源
+#   本机直连 api.github.com 会被 TCP 重置（2026-11-07 实测 0.02s 000），
+#   默认经 gh-proxy.com 转发；可在 config.json 里用 "github_proxy" 换成自己的代理。
+# 节流
+#   Search API 30 次/分钟，队列 2.4 秒一条；历史窗口只抓一次（结果不会变），
+#   当前小时 / 今日窗口每 60 秒重抓，上传者抽样 30 分钟一次。
+# 说明
+#   这是工作台唯一会联网的面板，只在打开它时才抓；页面关掉不产生任何请求。
+
+_GH_PROXIES = [p.strip() for p in (_CONFIG.get("github_proxies") or []) if p and str(p).strip()]
+if not _GH_PROXIES:
+    _GH_PROXIES = [str(_CONFIG.get("github_proxy") or "https://gh-proxy.com/").rstrip("/") + "/"]
+GH_PROXY = _GH_PROXIES[0]
+_GH_PROXY_IDX = [0]
+GH_CACHE_FILE = HERE / "_github_cache.json"
+GH_REFRESH = max(30, int(_CONFIG.get("github_refresh_secs") or 60))
+GH_SAMPLE_N = int(_CONFIG.get("github_sample_n") or 300)
+GH_ALERT_HOUR = int(_CONFIG.get("github_alert_hour") or 0)   # 本小时破这个数就提醒，0=关
+
+_GH_LOCK = threading.RLock()   # RLock：scan_github 持锁时会再进 _gh_ensure_worker
+_GH_TASKS: deque = deque()
+_GH_QUEUED: set = set()
+_GH_BUSY = 0          # 正在跑的抓取线程数（最多 2）
+_GH_RATE_LOCK = threading.Lock()
+_GH_LAST_REQ = 0.0
+_GH_STATS = {"req": 0, "ok": 0, "err": 0, "last_ok": 0, "last_err": ""}
+_GH_RATE = {"search_left": None, "search_reset": 0, "core_left": None}
+
+
+def _gh_enabled() -> bool:
+    """默认关闭：只有用户开了开关才会去抓。"""
+    return bool(_CONFIG.get("github_enabled", False))
+
+
+def _gh_set_enabled(v: bool) -> dict:
+    """开/关统计，写回 config.json（保留其它键），立即生效。"""
+    _CONFIG["github_enabled"] = bool(v)
+    if not v:
+        with _GH_LOCK:
+            _GH_TASKS.clear()
+            _GH_QUEUED.clear()
+    try:
+        (HERE / "config.json").write_text(
+            json.dumps(_CONFIG, ensure_ascii=False, indent=2), "utf-8")
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "enabled": bool(v), "error": str(e)[:120]}
+    return {"ok": True, "enabled": bool(v)}
+
+
+def _gh_load() -> dict:
+    try:
+        d = json.loads(GH_CACHE_FILE.read_text("utf-8"))
+        if isinstance(d, dict) and isinstance(d.get("w"), dict):
+            return d
+    except Exception:
+        pass
+    return {"v": 1, "w": {}, "latest": {}, "sample": {}, "stats": {}}
+
+
+_GH_CACHE = _gh_load()
+
+
+def _gh_save():
+    try:
+        tmp = GH_CACHE_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(_GH_CACHE, ensure_ascii=False), "utf-8")
+        tmp.replace(GH_CACHE_FILE)
+    except Exception:
+        pass
+
+
+def _gh_prune(keep_days: int = 45, keep_hours: int = 72):
+    """窗口 key 会随时间不断新增（每小时 1 个 h:、每天 1 个 d:），旧的不再查询，
+    这里按保留期剪掉，避免缓存无限长。历史上限之后每个 key 都不再进读取范围。"""
+    now = _dt.datetime.now().astimezone()
+    cut_d = (now - _dt.timedelta(days=keep_days)).strftime("%Y-%m-%d")
+    cut_h = (now - _dt.timedelta(hours=keep_hours)).strftime("%Y-%m-%dT%H")
+    with _GH_LOCK:
+        w = _GH_CACHE.get("w") or {}
+        dead = [k for k in w
+                if (k.startswith("d:") and k[2:] < cut_d) or (k.startswith("h:") and k[2:] < cut_h)]
+        for k in dead:
+            w.pop(k, None)
+
+
+def _gh_iso(d: _dt.datetime) -> str:
+    return d.astimezone(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _gh_headers():
+    return {"User-Agent": "dsh-workbench/1.1", "Accept": "application/vnd.github+json"}
+
+
+def _gh_get(target_url: str, timeout: int = 30):
+    """经代理请求 GitHub API，返回 (json, headers)。
+    配了多个代理时轮流试：当前代理失败自动切下一个，全部失败才抛错。"""
+    last = None
+    n = len(_GH_PROXIES)
+    for i in range(n):
+        idx = (_GH_PROXY_IDX[0] + i) % n
+        try:
+            req = urllib.request.Request(_GH_PROXIES[idx] + target_url, headers=_gh_headers())
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                data = json.loads(r.read().decode("utf-8"))
+                _GH_PROXY_IDX[0] = idx
+                return data, dict(r.headers)
+        except Exception as e:  # noqa: BLE001 —— 换下一个代理
+            last = e
+            continue
+    raise last if last else RuntimeError("no proxy configured")
+
+
+def _gh_gap():
+    """Search API 30 次/分钟，全局匀速 2.4 秒一条（两个线程共享这个节流）。"""
+    global _GH_LAST_REQ
+    with _GH_RATE_LOCK:
+        wait = 2.4 - (time.time() - _GH_LAST_REQ)
+        if wait > 0:
+            time.sleep(wait)
+        _GH_LAST_REQ = time.time()
+
+
+def _gh_api(path: str, params: dict):
+    _gh_gap()
+    url = "https://api.github.com" + path + "?" + urllib.parse.urlencode(params)
+    data, headers = _gh_get(url)
+    try:
+        if "X-RateLimit-Remaining" in headers:
+            _GH_RATE["search_left"] = int(headers["X-RateLimit-Remaining"])
+            _GH_RATE["search_reset"] = int(headers.get("X-RateLimit-Reset") or 0)
+    except Exception:
+        pass
+    if isinstance(data, dict) and data.get("message") and "total_count" not in data:
+        raise RuntimeError(str(data["message"])[:120])
+    return data
+
+
+def _gh_fetch_count(s: _dt.datetime, e: _dt.datetime) -> dict:
+    q = "created:%s..%s" % (_gh_iso(s), _gh_iso(e))
+    d = _gh_api("/search/repositories", {"q": q, "per_page": 1})
+    return {"c": int(d.get("total_count") or 0), "t": time.time(),
+            "s": int(s.timestamp()), "e": int(e.timestamp())}
+
+
+def _gh_fetch_latest() -> dict:
+    """最近 30 分钟抓 100 条，按 created_at 自己排序——GitHub search 不支持 sort=created。"""
+    now = _dt.datetime.now().astimezone()
+    q = "created:>=%s" % _gh_iso(now - _dt.timedelta(minutes=30))
+    d = _gh_api("/search/repositories", {"q": q, "per_page": 100})
+    rows = []
+    for x in (d.get("items") or []):
+        rows.append({
+            "name": str(x.get("full_name") or "")[:60],
+            "owner": str((x.get("owner") or {}).get("login") or ""),
+            "lang": x.get("language") or "",
+            "stars": int(x.get("stargazers_count") or 0),
+            "created": x.get("created_at") or "",
+        })
+    rows.sort(key=lambda r: r["created"], reverse=True)
+    return {"at": time.time(), "items": rows[:24]}
+
+
+def _gh_fetch_sample() -> dict:
+    """近 24h 抽 N 条：按 owner 去重估上传者数，顺带统计语言分布（零额外请求）。"""
+    now = _dt.datetime.now().astimezone()
+    q = "created:>=%s" % _gh_iso(now - _dt.timedelta(hours=24))
+    seen, n = set(), 0
+    langs: dict = {}
+    stars_sum = 0
+    pages = max(1, (GH_SAMPLE_N + 99) // 100)
+    for page in range(1, pages + 1):
+        d = _gh_api("/search/repositories", {"q": q, "per_page": 100, "page": page})
+        items = d.get("items") or []
+        if not items:
+            break
+        for x in items:
+            n += 1
+            login = (x.get("owner") or {}).get("login") or ""
+            if login:
+                seen.add(login)
+            lg = x.get("language") or "未标注"
+            langs[lg] = langs.get(lg, 0) + 1
+            stars_sum += int(x.get("stargazers_count") or 0)
+        if len(items) < 100:
+            break
+    top_langs = sorted(langs.items(), key=lambda kv: kv[1], reverse=True)[:10]
+    return {"at": time.time(), "n": n, "uniq": len(seen),
+            "langs": [[k, v] for k, v in top_langs],
+            "avg_stars": round(stars_sum / n, 1) if n else 0}
+
+
+def _gh_fetch_hot() -> dict:
+    """今天创建、star 最多的仓库（sort=stars 在 created 窗口内有效）。"""
+    now = _dt.datetime.now().astimezone()
+    day0 = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    q = "created:>=%s" % _gh_iso(day0)
+    d = _gh_api("/search/repositories", {"q": q, "sort": "stars", "order": "desc", "per_page": 10})
+    rows = []
+    for x in (d.get("items") or [])[:10]:
+        rows.append({
+            "name": str(x.get("full_name") or "")[:60],
+            "owner": str((x.get("owner") or {}).get("login") or ""),
+            "lang": x.get("language") or "",
+            "stars": int(x.get("stargazers_count") or 0),
+            "created": x.get("created_at") or "",
+        })
+    return {"at": time.time(), "items": rows}
+
+
+def _gh_query_range(s: _dt.datetime, e: _dt.datetime, timeout: int = 40) -> dict:
+    """自定义区间的精确总数（同步查，1 次请求）。"""
+    if e <= s:
+        return {"ok": False, "error": "结束时间要晚于开始时间"}
+    if (e - s).days > 366:
+        return {"ok": False, "error": "区间最多 1 年"}
+    q = "created:%s..%s" % (_gh_iso(s), _gh_iso(e))
+    _gh_gap()
+    data, _h = _gh_get("https://api.github.com/search/repositories?" +
+                       urllib.parse.urlencode({"q": q, "per_page": 1}), timeout=timeout)
+    return {"ok": True, "count": int(data.get("total_count") or 0),
+            "from": s.strftime("%Y-%m-%d %H:%M"), "to": e.strftime("%Y-%m-%d %H:%M")}
+
+
+def _gh_notify(title: str, body: str):
+    """Windows 右下角通知；失败静默（不影响面板）。"""
+    try:
+        import subprocess
+        ps = (
+            "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null;"
+            "$t = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02);"
+            "$n = $t.GetElementsByTagName('text');"
+            "$n.Item(0).AppendChild($t.CreateTextNode('%s')) | Out-Null;"
+            "$n.Item(1).AppendChild($t.CreateTextNode('%s')) | Out-Null;"
+            "$toast = [Windows.UI.Notifications.ToastNotification]::new($t);"
+            "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('DSH 工作台').Show($toast);"
+        ) % (title.replace("'", "''"), body.replace("'", "''"))
+        subprocess.run(["powershell", "-NoProfile", "-Command", ps],
+                       capture_output=True, timeout=8)
+    except Exception:
+        pass
+
+
+def _gh_worker():
+    global _GH_BUSY, _GH_STATS
+    while True:
+        with _GH_LOCK:
+            if not _gh_enabled():
+                _GH_TASKS.clear()
+                _GH_QUEUED.clear()
+                _GH_BUSY = max(0, _GH_BUSY - 1)
+                return
+            if not _GH_TASKS:
+                _GH_BUSY = max(0, _GH_BUSY - 1)
+                return
+            task = _GH_TASKS.popleft()
+            _GH_QUEUED.discard(task["key"])
+        try:
+            if task["kind"] == "count":
+                item = _gh_fetch_count(task["s"], task["e"])
+                with _GH_LOCK:
+                    _GH_CACHE["w"][task["key"]] = item
+            elif task["kind"] == "latest":
+                item = _gh_fetch_latest()
+                with _GH_LOCK:
+                    _GH_CACHE["latest"] = item
+            elif task["kind"] == "sample":
+                item = _gh_fetch_sample()
+                with _GH_LOCK:
+                    _GH_CACHE["sample"] = item
+            elif task["kind"] == "hot":
+                item = _gh_fetch_hot()
+                with _GH_LOCK:
+                    _GH_CACHE["hot"] = item
+            with _GH_LOCK:
+                _GH_STATS["req"] += 1
+                _GH_STATS["ok"] += 1
+                _GH_STATS["last_ok"] = time.time()
+                _GH_STATS["last_err"] = ""
+            _gh_save()
+        except Exception as e:  # noqa: BLE001 —— 网络抖动/代理挂了都走这里
+            task["try"] = int(task.get("try") or 0) + 1
+            with _GH_LOCK:
+                _GH_STATS["req"] += 1
+                _GH_STATS["err"] += 1
+                _GH_STATS["last_err"] = "%s: %s" % (type(e).__name__, str(e)[:120])
+                if task["try"] <= 3:
+                    _GH_TASKS.append(task)      # 放回队尾重试
+                    _GH_QUEUED.add(task["key"])
+            time.sleep(4 + task["try"] * 2)
+
+
+def _gh_ensure_worker():
+    global _GH_BUSY
+    with _GH_LOCK:
+        if _GH_BUSY >= 2:
+            return
+        _GH_BUSY += 1
+        n = _GH_BUSY
+    threading.Thread(target=_gh_worker, daemon=True, name="gh-fetch-%d" % n).start()
+
+
+def _gh_plan_windows():
+    """返回 [(key, start, end, ttl, partial)]：最近 30 个本地日 + 最近 24 个本地小时。"""
+    loc = _dt.datetime.now().astimezone()
+    now = loc
+    cur = loc.replace(minute=0, second=0, microsecond=0)
+    plan = []
+    for i in range(29, -1, -1):
+        d0 = (loc - _dt.timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
+        d1 = (d0 + _dt.timedelta(days=1)) if i else now
+        plan.append(("d:" + d0.strftime("%Y-%m-%d"), d0, d1,
+                     GH_REFRESH if i == 0 else 10 ** 9, i == 0))
+    for i in range(23, -1, -1):
+        h0 = cur - _dt.timedelta(hours=i)
+        h1 = now if i == 0 else h0 + _dt.timedelta(hours=1)
+        plan.append(("h:" + h0.strftime("%Y-%m-%dT%H"), h0, h1,
+                     GH_REFRESH if i == 0 else 10 ** 9, i == 0))
+    return plan
+
+
+def _gh_valid(it: dict, end: _dt.datetime, ttl: float, partial: bool) -> bool:
+    if not it or not isinstance(it.get("c"), int):
+        return False
+    if time.time() - float(it.get("t") or 0) >= ttl:
+        return False
+    if not partial and it.get("e") != int(end.timestamp()):
+        return False
+    return True
+
+
+def scan_github(from_s: str = "", to_s: str = "") -> dict:
+    loc = _dt.datetime.now().astimezone()
+    if not _gh_enabled():
+        # 关闭：不读缓存、不入队、不起线程、不发请求
+        return {"ok": True, "enabled": False,
+                "generated_at": loc.strftime("%Y-%m-%d %H:%M:%S"),
+                "hint": "统计已关闭"}
+    if from_s and to_s:
+        # 自定义区间：同步查一次，不改主面板
+        try:
+            s = _dt.datetime.fromisoformat(from_s).astimezone()
+            e = _dt.datetime.fromisoformat(to_s).astimezone()
+        except Exception:
+            return {"ok": False, "enabled": True, "error": "时间格式不对，要 2026-11-01T00:00"}
+        r = _gh_query_range(s, e)
+        r["enabled"] = True
+        return r
+    plan = _gh_plan_windows()
+    _gh_prune()
+
+    need = []
+    with _GH_LOCK:
+        for k, s, e, ttl, partial in plan:
+            if not _gh_valid(_GH_CACHE["w"].get(k), e, ttl, partial):
+                need.append((k, s, e))
+        # 先保证 KPI 能用：今日 / 当前小时 / 最新入库 / 抽样，历史窗口排后面
+        today_key = plan[29][0]                       # plan 前 30 条是日窗口，第 30 条是今天
+        cur_key = plan[-1][0]                         # 最后一条是当前小时
+        need.sort(key=lambda t: 0 if t[0] == today_key else (1 if t[0] == cur_key else (2 if t[0].startswith("h:") else 3)))
+        for k, s, e in need:
+            if k not in _GH_QUEUED:
+                _GH_TASKS.append({"kind": "count", "key": k, "s": s, "e": e})
+                _GH_QUEUED.add(k)
+        # 最新入库 + 上传者抽样（插到队首，紧跟 KPI 窗口）
+        lt = _GH_CACHE.get("latest") or {}
+        if time.time() - float(lt.get("at") or 0) >= GH_REFRESH:
+            if "latest" not in _GH_QUEUED:
+                _GH_TASKS.appendleft({"kind": "latest", "key": "latest"})
+                _GH_QUEUED.add("latest")
+        smp = _GH_CACHE.get("sample") or {}
+        if ("langs" not in smp) or time.time() - float(smp.get("at") or 0) >= 1800:
+            if "sample" not in _GH_QUEUED:
+                _GH_TASKS.insert(1, {"kind": "sample", "key": "sample"})
+                _GH_QUEUED.add("sample")
+        hot = _GH_CACHE.get("hot") or {}
+        if time.time() - float(hot.get("at") or 0) >= 600:
+            if "hot" not in _GH_QUEUED:
+                _GH_TASKS.insert(2, {"kind": "hot", "key": "hot"})
+                _GH_QUEUED.add("hot")
+        if need or _GH_TASKS:
+            _gh_ensure_worker()
+        cached = _GH_CACHE["w"]
+        done_ok = sum(1 for k, _s, _e, _ttl, _p in plan if isinstance((cached.get(k) or {}).get("c"), int))
+        progress = {
+            "done": done_ok,
+            "total": len(plan),
+            "queued": len(_GH_QUEUED),
+            "busy": _GH_BUSY > 0,
+        }
+        latest = _GH_CACHE.get("latest") or {}
+        sample = _GH_CACHE.get("sample") or {}
+        hot = _GH_CACHE.get("hot") or {}
+        stats = dict(_GH_STATS)
+        rate = dict(_GH_RATE)
+
+    def val(key):
+        it = cached.get(key)
+        return it.get("c") if it else None
+
+    days = [(k, s, e) for k, s, e, ttl, partial in plan if k.startswith("d:")]
+    hours = [(k, s, e) for k, s, e, ttl, partial in plan if k.startswith("h:")]
+
+    today_n = val(days[-1][0])
+    hour_n = val(hours[-1][0])
+    h24_vals = [val(k) for k, _s, _e in hours]
+    h24 = sum(h24_vals) if all(v is not None for v in h24_vals) else None
+
+    uploaders = None
+    if sample.get("n") and h24:
+        ratio = sample.get("uniq", 0) / max(1, sample["n"])
+        uploaders = {"n": int(round(h24 * ratio)), "ratio": round(ratio, 3),
+                     "sample": sample["n"], "at": sample.get("at")}
+
+    hourly = []
+    for i, (k, s, _e) in enumerate(hours):
+        hourly.append({"t": s.strftime("%H:%M"), "c": val(k), "cur": i == len(hours) - 1,
+                       "ts": int(s.timestamp())})
+    daily = []
+    for k, s, _e in days:
+        daily.append({"d": s.strftime("%m-%d"), "c": val(k),
+                      "ts": int(s.timestamp()), "today": k == days[-1][0]})
+
+    return {
+        "ok": True,
+        "enabled": True,
+        "generated_at": loc.strftime("%Y-%m-%d %H:%M:%S"),
+        "tz": loc.strftime("%z"),
+        "source": "api.github.com/search/repositories",
+        "proxy": GH_PROXY,
+        "refresh_secs": GH_REFRESH,
+        "progress": progress,
+        "rate": rate,
+        "stats": stats,
+        "kpi": {
+            "today": today_n,
+            "today_label": loc.strftime("%Y-%m-%d"),
+            "hour": hour_n,
+            "hour_label": hours[-1][1].strftime("%H:%M") + " 止（本小时进行中）",
+            "h24": h24,
+            "uploaders": uploaders,
+        },
+        "hourly": hourly,
+        "daily": daily,
+        "latest": {"at": latest.get("at"), "items": latest.get("items") or []},
+        "hot": {"at": hot.get("at"), "items": hot.get("items") or []},
+        "langs": sample.get("langs") or [],
+        "avg_stars": sample.get("avg_stars") or 0,
+        "week": _gh_week_cmp(daily),
+        "alert": _gh_alert(hour_n),
+    }
+
+
+def _gh_week_cmp(daily) -> dict | None:
+    """最近 7 天 vs 前 7 天（用已有日数据，零额外请求）。"""
+    ds = [d for d in daily if isinstance(d.get("c"), int)]
+    if len(ds) < 14:
+        return None
+    prev = ds[-14:-7]
+    cur = ds[-7:]
+    p = sum(x["c"] for x in prev)
+    c = sum(x["c"] for x in cur)
+    return {"cur": c, "prev": p, "delta": c - p,
+            "pct": round((c - p) / p * 100, 1) if p else None,
+            "prev_range": "%s–%s" % (prev[0]["d"], prev[-1]["d"]),
+            "cur_range": "%s–%s" % (cur[0]["d"], cur[-1]["d"])}
+
+
+def _gh_alert(hour_n) -> dict | None:
+    """本小时破阈值就弹 Windows 通知；同一阈值 30 分钟内只弹一次。"""
+    if GH_ALERT_HOUR <= 0 or not hour_n or hour_n < GH_ALERT_HOUR:
+        return None
+    now_ts = time.time()
+    if now_ts - float(_GH_CACHE.get("alert_at") or 0) > 1800:
+        _GH_CACHE["alert_at"] = now_ts
+        threading.Thread(target=_gh_notify, daemon=True, args=(
+            "GitHub 新增爆发",
+            "本小时已 %s 个新仓库，超过阈值 %s" % (format(hour_n, ","), format(GH_ALERT_HOUR, ",")),
+        )).start()
+    return {"threshold": GH_ALERT_HOUR, "value": hour_n}
+
+
 # 面板注册表：加一行就多一个面板（key 对应 /api/<key>）
 PANELS = [
     ("overview", "概览", scan_overview),
@@ -725,6 +1218,7 @@ PANELS = [
     ("cost", "成本", scan_cost),
     ("artcraft", "ArtCraft", scan_artcraft),
     ("tools", "工具开销", scan_tools),
+    ("github", "GitHub 新增", scan_github),
 ]
 
 # 核心插件不允许从面板里关掉，否则 DSH 起不来
@@ -1081,6 +1575,11 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path.startswith("/api/"):
                 key = path[5:]
+                qs = urllib.parse.parse_qs(self.path.split("?", 1)[1]) if "?" in self.path else {}
+                if key == "github":
+                    # 支持 ?from=2026-11-01T00:00&to=2026-11-07T21:00 查自定义区间
+                    self._json(scan_github((qs.get("from") or [""])[0], (qs.get("to") or [""])[0]))
+                    return
                 for k, _lab, fn in PANELS:
                     if k == key:
                         self._json(fn())
@@ -1102,6 +1601,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path == "/api/plugins/toggle":
                 self._json(toggle_plugin(str(body.get("name") or ""), bool(body.get("enabled"))))
+                return
+            if path == "/api/github/toggle":
+                self._json(_gh_set_enabled(bool(body.get("enabled"))))
                 return
             if path == "/api/agents/toggle":
                 self._json(toggle_agent(str(body.get("id") or ""), bool(body.get("enabled"))))

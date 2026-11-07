@@ -861,6 +861,64 @@ body.theme-tech h2 small{ color:var(--dim); text-transform:none; letter-spacing:
 header{z-index:1000}
 .layout{position:relative;z-index:1}
 #themeMenu{z-index:99999;box-shadow:0 16px 48px rgba(0,0,0,.75)}
+
+/* ── GitHub 新增仓库面板 ───────────────────────────────────────── */
+.gh-bar{display:flex;align-items:center;gap:12px;margin:-2px 0 14px;flex-wrap:wrap}
+.gh-status{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  font-size:12px;color:var(--dim);margin:0}
+.gh-status b{color:var(--text);font-weight:600}
+.gh-dot{width:7px;height:7px;border-radius:50%;flex:none}
+.gh-dot.ok{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.gh-dot.busy{background:var(--warn);box-shadow:0 0 8px var(--warn);animation:ghpulse 1.2s ease-in-out infinite}
+@keyframes ghpulse{0%,100%{opacity:.35}50%{opacity:1}}
+.gh-kpi{margin-bottom:16px}
+.gh-chart-card{padding:14px 16px 8px}
+.gh-chart-head{display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap}
+.gh-tabs{display:flex;gap:4px;background:rgba(255,255,255,.03);border:1px solid var(--line);
+  border-radius:9px;padding:3px}
+.gh-tabs button{border:0;background:transparent;color:var(--dim);font-size:12px;
+  padding:4px 12px;border-radius:7px;cursor:pointer;transition:.14s}
+.gh-tabs button:hover{color:var(--text)}
+.gh-tabs button.on{background:rgba(77,208,225,.16);color:var(--accent)}
+.gh-legend{margin-left:auto;font-size:11px;color:var(--dim)}
+.gh-cols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;margin-top:14px}
+@media (max-width:900px){.gh-cols{grid-template-columns:1fr}}
+.gh-list{max-height:380px;overflow:auto;margin-top:4px}
+.gh-row{display:flex;align-items:center;gap:10px;padding:7px 2px;
+  border-bottom:1px solid rgba(120,150,180,.08);font-size:13px}
+.gh-row:last-child{border-bottom:0}
+.gh-repo{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.gh-repo b{color:var(--text);font-weight:600}
+.gh-meta{display:flex;align-items:center;gap:8px;flex:none;font-size:11px;color:var(--dim)}
+.gh-note-body p{margin:0 0 9px;font-size:12px;line-height:1.75;color:var(--dim)}
+.gh-note-body p:last-child{margin-bottom:0}
+.gh-note-body b{color:var(--text)}
+.gh-switch{border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--dim);
+  font-size:12px;padding:6px 14px;border-radius:9px;cursor:pointer;transition:.15s;flex:none}
+.gh-switch:hover{color:var(--text);border-color:rgba(120,170,200,.45)}
+.gh-switch.on{background:rgba(77,208,225,.16);color:var(--accent);
+  border-color:rgba(77,208,225,.45)}
+.gh-switch.on:hover{background:rgba(77,208,225,.26)}
+.gh-off-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.gh-off .gh-switch{margin-left:auto;padding:10px 22px;font-size:13px}
+.gh-alert{border-left:3px solid var(--warn);background:rgba(255,183,77,.10);color:var(--warn);
+  padding:10px 14px;border-radius:0 9px 9px 0;margin-bottom:14px;font-size:13px}
+.gh-week{margin-bottom:14px}
+.gh-week-main{font-size:14px}
+.gh-week-main b{color:var(--text)}
+.gh-week-main .up{color:var(--ok);font-weight:600;margin-left:6px}
+.gh-week-main .down{color:var(--bad);font-weight:600;margin-left:6px}
+.gh-range{padding:12px 16px;margin-bottom:14px}
+.gh-range-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.gh-input{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:8px;
+  color:var(--text);padding:6px 10px;font-size:12px;font-family:inherit;color-scheme:dark}
+.gh-input:focus{outline:none;border-color:var(--accent)}
+.gh-langs{display:flex;flex-direction:column;gap:7px;margin-top:2px}
+.gh-lang-row{display:flex;align-items:center;gap:10px;font-size:12px}
+.gh-lang-name{width:92px;flex:none;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gh-lang-bar{flex:1;height:7px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden}
+.gh-lang-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:4px}
+.gh-lang-val{width:38px;text-align:right;color:var(--accent);font-family:Consolas,monospace}
 </style>
 <script src="lib/three.min.js"></script>
 <script src="galaxy.js"></script>
@@ -1046,6 +1104,7 @@ async function load(key){
   state.cur = key;
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on', b.dataset.key===key));
   const main = $('#main');
+  ghStop();
   main.innerHTML = '<div class="empty">读取中…</div>';
   const data = await jget('/api/'+key);
   if(my !== loadToken) return            // 期间又点过别的面板，这次结果直接丢掉
@@ -1057,6 +1116,7 @@ async function load(key){
   if(key==='cost')     return renderCost(data);
   if(key==='artcraft') return renderArtcraft(data);
   if(key==='tools')    return renderTools(data);
+  if(key==='github')   return renderGithub(data);
   return renderGeneric(key, data);   // 扩展面板：后端加一行，前端自动出页面
 }
 
@@ -2004,6 +2064,334 @@ function renderTools(d){
     <div style="margin-top:18px;color:var(--dim);font-size:12px">
       明细是按插件工具数比例估算的（DSH 只给总数）。关插件前先看这里谁在吃。
     </div>`;
+}
+
+/* ---------- GitHub 新增仓库（工作台唯一联网面板） ---------- */
+let ghTimer = null, ghData = null, ghMode = '24h';
+const fmtN = (n) => (n === null || n === undefined || n === '') ? '—' : Number(n).toLocaleString('en-US');
+
+function ghStop(){ if(ghTimer){ clearTimeout(ghTimer); ghTimer = null; } }
+
+function renderGithub(d){
+  if(d && d.enabled === false) return renderGithubOff(d);
+  $('#main').innerHTML = `
+    <h2>GitHub 新增仓库 <small>实时统计 · 只统计 public 仓库</small></h2>
+    <div class="gh-bar">
+      <div id="ghStatus" class="gh-status"></div>
+      <button id="ghCsv" class="gh-switch" title="把日/小时序列导成 CSV">导出 CSV</button>
+      <button id="ghOff" class="gh-switch" title="关闭后不发任何请求">关闭统计</button>
+    </div>
+    <div id="ghAlert"></div>
+    <div class="grid gh-kpi">
+      <div class="card"><h3>今日新增</h3><div class="big" id="ghToday">—</div><div class="sub" id="ghTodaySub">本地 00:00 起</div></div>
+      <div class="card"><h3>本小时</h3><div class="big" id="ghHour">—</div><div class="sub" id="ghHourSub">当前整点起</div></div>
+      <div class="card"><h3>近 24 小时</h3><div class="big" id="gh24">—</div><div class="sub">滚动 24 个整点求和</div></div>
+      <div class="card"><h3>上传者 · 估算</h3><div class="big" id="ghUp">—</div><div class="sub" id="ghUpSub">抽样去重外推</div></div>
+    </div>
+    <div id="ghWeek"></div>
+    <div class="card gh-chart-card">
+      <div class="gh-chart-head">
+        <div class="gh-tabs">
+          <button data-m="24h" class="on">24 小时</button>
+          <button data-m="7d">7 天</button>
+          <button data-m="30d">30 天</button>
+        </div>
+        <div class="gh-legend" id="ghLegend"></div>
+      </div>
+      <div id="ghChart"></div>
+    </div>
+    <div class="card gh-range">
+      <div class="gh-range-row">
+        <span style="font-size:13px;font-weight:600;flex:none">查自定义区间</span>
+        <input type="datetime-local" id="ghFrom" class="gh-input">
+        <span style="color:var(--dim);flex:none">→</span>
+        <input type="datetime-local" id="ghTo" class="gh-input">
+        <button id="ghQuery" class="gh-switch on" style="flex:none">查询</button>
+        <span id="ghRangeOut" style="font-size:12px;color:var(--dim)"></span>
+      </div>
+    </div>
+    <div class="gh-cols">
+      <div class="card">
+        <h3>最新上传</h3>
+        <div id="ghLatest" class="gh-list"></div>
+      </div>
+      <div class="card">
+        <h3>今日最热 <small style="font-weight:400;color:var(--dim)">按星标</small></h3>
+        <div id="ghHot" class="gh-list"></div>
+      </div>
+    </div>
+    <div class="gh-cols">
+      <div class="card">
+        <h3>语言分布 <small style="font-weight:400;color:var(--dim)">近 24h 抽样</small></h3>
+        <div id="ghLangs" class="gh-langs"></div>
+      </div>
+      <div class="card gh-note">
+        <h3>口径与限制</h3>
+        <div class="gh-note-body">
+          <p><b>新增仓库数</b>：GitHub Search API 的 <span class="mono">total_count</span>，按创建时间 <span class="mono">created:</span> 切窗统计，是精确值。</p>
+          <p><b>开源 / 闭源</b>：只统计 public 仓库；私有仓库 API 查不到，按你的要求不做。</p>
+          <p><b>上传者数</b>：GitHub 不提供按人去重的接口，这里抽样 300 条按 owner 去重、按比例外推，是<b>估算值</b>。</p>
+          <p><b>数据源</b>：本机直连 api.github.com 会被重置，经 <span class="mono">gh-proxy.com</span> 转发；可在 config.json 的 <span class="mono">github_proxies</span> 配多个代理自动轮换。</p>
+          <p><b>刷新</b>：停留在这个面板时每 60 秒拉一次；历史窗口只抓一次，不重复消耗额度。</p>
+          <p><b>实时性</b>：GitHub 搜索索引有 5–15 分钟延迟，所以「最新上传」看到的是索引里最新的，不是刚提交的那一秒。</p>
+        </div>
+      </div>
+    </div>`;
+  document.querySelectorAll('.gh-tabs button').forEach(b=>{
+    b.onclick = ()=>{
+      ghMode = b.dataset.m;
+      document.querySelectorAll('.gh-tabs button').forEach(x=>x.classList.toggle('on', x===b));
+      if(ghData) ghPaint(ghData);
+    };
+  });
+  const _m = new URLSearchParams(location.search).get('mode');
+  if(_m === '7d' || _m === '30d'){
+    ghMode = _m;
+    document.querySelectorAll('.gh-tabs button').forEach(x=>x.classList.toggle('on', x.dataset.m === _m));
+  }
+  const _off = document.getElementById('ghOff');
+  if(_off) _off.onclick = ghTurnOff;
+  const _csv = document.getElementById('ghCsv');
+  if(_csv) _csv.onclick = ghExportCsv;
+  const _q = document.getElementById('ghQuery');
+  if(_q) _q.onclick = ghQueryRange;
+  const _fr = document.getElementById('ghFrom'), _to = document.getElementById('ghTo');
+  if(_fr && _to){
+    const now = new Date(), dayAgo = new Date(Date.now() - 86400000);
+    const fmt = (x)=> x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')+'T'+String(x.getHours()).padStart(2,'0')+':'+String(x.getMinutes()).padStart(2,'0');
+    _fr.value = fmt(dayAgo); _to.value = fmt(now);
+  }
+  ghPaint(d);
+  ghPoll();
+}
+
+/* 关闭态：一个按钮就能开启，不藏设置 */
+function renderGithubOff(d){
+  $('#main').innerHTML = `
+    <h2>GitHub 新增仓库 <small>实时统计 · 只统计 public 仓库</small></h2>
+    <div class="card gh-off">
+      <div class="gh-off-row">
+        <div style="flex:1;min-width:260px">
+          <div style="font-size:17px;font-weight:600;margin-bottom:8px">统计已关闭</div>
+          <div style="color:var(--dim);font-size:13px;line-height:1.9">
+            关闭状态：<b style="color:var(--text)">不发任何网络请求</b>，不起后台线程，连本地缓存都不读。<br>
+            开启后才会去 GitHub 拉数据 —— 走公共接口，<b style="color:var(--text)">不消耗 DSH token</b>，
+            只是别让它一直在后台跑。
+          </div>
+        </div>
+        <button id="ghOn" class="gh-switch on">开启统计</button>
+      </div>
+    </div>`;
+  $('#ghOn').onclick = async ()=>{
+    const r = await ghToggle(true);
+    if(r && r.ok) load('github');
+    else alert('开启失败：' + ((r && r.error) || '未知错误'));
+  };
+}
+
+async function ghToggle(enabled){
+  try {
+    const r = await fetch('/api/github/toggle', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({enabled: !!enabled})
+    });
+    return await r.json();
+  } catch(e){ return {ok: false, error: String(e && e.message || e)}; }
+}
+
+async function ghTurnOff(){
+  const r = await ghToggle(false);
+  if(r && r.ok){ ghStop(); load('github'); }
+  else alert('关闭失败：' + ((r && r.error) || '未知错误'));
+}
+
+const ghIso = (ts) => new Date(ts * 1000).toISOString().slice(0, 19) + 'Z';
+
+function ghExportCsv(){
+  if(!ghData) return;
+  const rows = ['类型,时间,新增数量'];
+  (ghData.daily || []).forEach(x => rows.push('日,' + x.d + ',' + (x.c ?? '')));
+  (ghData.hourly || []).forEach(x => rows.push('小时,' + x.t + ',' + (x.c ?? '')));
+  const blob = new Blob(['\ufeff' + rows.join('\n')], {type: 'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'github-new-repos-' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+async function ghQueryRange(){
+  const f = document.getElementById('ghFrom');
+  const t = document.getElementById('ghTo');
+  const out = document.getElementById('ghRangeOut');
+  if(!f || !t || !out) return;
+  if(!f.value || !t.value){ out.textContent = '先选起止时间'; return; }
+  out.textContent = '查询中…';
+  try {
+    const r = await fetch('/api/github?from=' + encodeURIComponent(f.value) + '&to=' +
+                          encodeURIComponent(t.value)).then(r => r.json());
+    if(r.ok) out.innerHTML = `<b style="color:var(--accent);font-size:14px">${fmtN(r.count)}</b> 个新仓库 <span>（${esc(r.from)} → ${esc(r.to)}）</span>`;
+    else out.textContent = '失败：' + (r.error || '未知');
+  } catch(e){ out.textContent = '失败：' + String((e && e.message) || e); }
+}
+
+function ghLangs(items){
+  if(!items || !items.length) return '<div class="empty" style="font-size:12px">等第一轮抽样…</div>';
+  const max = Math.max(1, ...items.map(x => x[1]));
+  return items.map(([k, v]) => `
+    <div class="gh-lang-row">
+      <div class="gh-lang-name">${esc(k)}</div>
+      <div class="gh-lang-bar"><i style="width:${Math.max(3, v / max * 100)}%"></i></div>
+      <div class="gh-lang-val">${v}</div>
+    </div>`).join('');
+}
+
+async function ghPoll(){
+  if(state.cur !== 'github') return;
+  let d;
+  try { d = await jget('/api/github'); }
+  catch(e){ ghTimer = setTimeout(ghPoll, 6000); return; }
+  if(state.cur !== 'github') return;
+  if(!d || d.error){
+    const s = document.getElementById('ghStatus');
+    if(s) s.innerHTML = `<span style="color:var(--bad)">读取失败：${esc((d && d.error) || '未知')}</span>`;
+    ghTimer = setTimeout(ghPoll, 6000); return;
+  }
+  ghData = d;
+  ghPaint(d);
+  const settled = !d.progress || d.progress.done >= d.progress.total;
+  ghTimer = setTimeout(ghPoll, settled ? 60000 : 4000);
+}
+
+function ghPaint(d){
+  if(state.cur !== 'github') return;
+  const g = (id) => document.getElementById(id);
+  if(!g('ghToday')) return;
+  const k = d.kpi || {};
+  g('ghToday').textContent = fmtN(k.today);
+  g('ghTodaySub').textContent = (k.today_label || '') + ' 00:00 起';
+  g('ghHour').textContent = fmtN(k.hour);
+  g('ghHourSub').textContent = k.hour_label || '当前整点起';
+  g('gh24').textContent = fmtN(k.h24);
+  const up = k.uploaders;
+  g('ghUp').textContent = up ? '≈ ' + fmtN(up.n) : '—';
+  g('ghUpSub').textContent = up
+    ? `抽样 ${up.sample} 条，去重率 ${(up.ratio*100).toFixed(1)}%`
+    : '抽样去重外推';
+
+  const p = d.progress || {};
+  let st = '';
+  if(p.busy && p.done < p.total){
+    st += `<span class="gh-dot busy"></span>正在抓取历史窗口 <b>${p.done}/${p.total}</b>${p.queued?` · 队列 ${p.queued}`:''}`;
+  } else {
+    st += `<span class="gh-dot ok"></span>已更新 ${esc(d.generated_at || '')}`;
+  }
+  if(d.rate && d.rate.search_left != null) st += ` · Search 额度剩 <b>${d.rate.search_left}</b>`;
+  if(d.stats && d.stats.last_err) st += ` · <span style="color:var(--bad)">上次出错：${esc(d.stats.last_err)}</span>`;
+  g('ghStatus').innerHTML = st;
+
+  // 告警横幅
+  const al = d.alert;
+  g('ghAlert').innerHTML = al
+    ? `<div class="gh-alert">⚠ 本小时已 ${fmtN(al.value)} 个新仓库，超过阈值 ${fmtN(al.threshold)}</div>`
+    : '';
+
+  // 本周 vs 上周
+  const w = d.week;
+  g('ghWeek').innerHTML = w ? `
+    <div class="card gh-week">
+      <div class="gh-week-main">最近 7 天 <b>${fmtN(w.cur)}</b> · 前 7 天 <b>${fmtN(w.prev)}</b>
+        <span class="${w.delta >= 0 ? 'up' : 'down'}">${w.delta >= 0 ? '▲' : '▼'} ${Math.abs(w.pct || 0)}%</span>
+      </div>
+      <div class="sub">${esc(w.cur_range)} vs ${esc(w.prev_range)}（今天未满 24h，略有低估）</div>
+    </div>` : '';
+
+  const series = ghSeries(d);
+  g('ghChart').innerHTML = ghChartSVG(series);
+  g('ghChart').querySelectorAll('rect[data-url]').forEach(el => {
+    el.style.cursor = 'pointer';
+    el.onclick = () => window.open(el.dataset.url, '_blank');
+  });
+  g('ghLegend').textContent = series.unit === '小时'
+    ? '最近 24 个整点（北京时间）'
+    : (series.unit === '天' ? '最近 ' + series.items.length + ' 天（北京时间）' : '');
+  g('ghLatest').innerHTML = ghList((d.latest && d.latest.items) || []);
+  g('ghHot').innerHTML = ghList((d.hot && d.hot.items) || []);
+  g('ghLangs').innerHTML = ghLangs(d.langs || []);
+}
+
+function ghSeries(d){
+  if(ghMode === '7d' || ghMode === '30d'){
+    const n = ghMode === '7d' ? 7 : 30;
+    return {unit: '天', span: 86400,
+            items: (d.daily || []).slice(-n).map(x => ({label: x.d, v: x.c, cur: x.today, ts: x.ts}))};
+  }
+  return {unit: '小时', span: 3600,
+          items: (d.hourly || []).map(x => ({label: x.t, v: x.c, cur: x.cur, ts: x.ts}))};
+}
+
+function ghChartSVG(s){
+  const items = s.items || [];
+  const W = 1000, H = 250, P = 26;
+  const n = Math.max(1, items.length);
+  const vals = items.map(x => x.v).filter(v => v != null);
+  const max = Math.max(1, ...(vals.length ? vals : [1]));
+  const bw = (W - P * 2) / n;
+  const barW = Math.max(2.5, Math.min(30, bw * 0.7));
+  const baseY = H - P;
+
+  let bars = '';
+  items.forEach((x, i) => {
+    const h = x.v == null ? 0 : (x.v / max) * (baseY - P);
+    const x0 = P + i * bw + (bw - barW) / 2;
+    const y = baseY - h;
+    const href = x.ts
+      ? 'https://github.com/search?q=' + encodeURIComponent(
+          'created:' + ghIso(x.ts) + '..' + ghIso(x.ts + (s.span || 3600))) + '&type=repositories'
+      : '';
+    bars += `<rect x="${x0.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(0, h).toFixed(1)}" rx="3" fill="url(#ghg)" opacity="${x.cur ? 1 : .55}"${href ? ` data-url="${esc(href)}"` : ''}><title>${esc(x.label)} · ${x.v == null ? '读取中' : fmtN(x.v)}${href ? '（点击去 GitHub 看）' : ''}</title></rect>`;
+  });
+
+  const grid = [0, .5, 1].map(f => {
+    const y = baseY - f * (baseY - P);
+    return `<line x1="${P}" y1="${y.toFixed(1)}" x2="${W - P}" y2="${y.toFixed(1)}" stroke="rgba(120,160,190,.14)" stroke-dasharray="3 5" stroke-width="1"/>`;
+  }).join('');
+
+  const step = n <= 24 ? 4 : (n <= 7 ? 1 : 5);
+  let labels = '';
+  items.forEach((x, i) => {
+    if(i % step !== 0 && i !== n - 1) return;
+    const cx = P + i * bw + bw / 2;
+    labels += `<text x="${cx.toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="rgba(157,178,201,.85)">${esc(x.label)}</text>`;
+  });
+
+  const top = `<text x="${P}" y="${P - 10}" font-size="11" fill="rgba(157,178,201,.9)">峰值 ${fmtN(max)}</text>`;
+
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;display:block">
+    <defs><linearGradient id="ghg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="var(--accent)" stop-opacity="1"/>
+      <stop offset="100%" stop-color="var(--accent2)" stop-opacity=".35"/>
+    </linearGradient></defs>
+    ${grid}${top}${bars}${labels}</svg>`;
+}
+
+function ghList(items){
+  if(!items || !items.length) return '<div class="empty" style="font-size:12px">还没有数据，等第一轮抓取…</div>';
+  const hm = (iso)=>{
+    if(!iso) return '';
+    const t = new Date(iso);
+    if(isNaN(t)) return '';
+    return String(t.getHours()).padStart(2,'0') + ':' + String(t.getMinutes()).padStart(2,'0');
+  };
+  return items.map(x => `
+    <div class="gh-row">
+      <div class="gh-repo"><b>${esc(x.owner)}</b>/${esc(x.name.replace((x.owner || '') + '/', ''))}</div>
+      <div class="gh-meta">
+        ${x.lang ? `<span class="tag">${esc(x.lang)}</span>` : ''}
+        <span class="mono">★ ${x.stars}</span>
+        <span class="mono">${hm(x.created)}</span>
+      </div>
+    </div>`).join('');
 }
 
 /* ---------- 通用：以后新加的面板自动渲染 ---------- */

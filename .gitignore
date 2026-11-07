@@ -28,3 +28,7 @@ _*.py
 
 # Graphify 本地图谱产物（可随时 graphify extract 重建）
 graphify-out/
+
+# GitHub 面板缓存（可随时重建）
+_github_cache.json
+_github_cache.tmp

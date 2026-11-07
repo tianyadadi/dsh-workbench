@@ -1,9 +1,16 @@
 {
-  "_说明": "把下面四项改成你自己机器上的实际路径；不填则自动探测",
+  "_说明": "把下面几项改成你自己机器上的实际路径；不填则自动探测",
   "dsh_home": "",
   "modules_dir": "C:/Users/你的用户名/.dsh/node_modules",
   "memory_dir": "C:/Users/你的用户名/.dsh/memory",
   "artcraft_dir": "C:/Users/你的用户名/.dsh/artcraft",
   "runtime_dir": "",
-  "workarea_dir": "C:/Users/你的用户名/workarea"
+  "workarea_dir": "C:/Users/你的用户名/workarea",
+
+  "_github_说明": "GitHub 新增仓库面板（工作台唯一联网面板），全部可选；不填就用默认值",
+  "github_enabled": false,
+  "github_proxies": ["https://gh-proxy.com/"],
+  "github_refresh_secs": 60,
+  "github_sample_n": 300,
+  "github_alert_hour": 0
 }
