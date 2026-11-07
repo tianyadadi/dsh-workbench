@@ -184,9 +184,9 @@ python server.py --port 8799
 | 导出 CSV | 把日/小时序列导出 | 0 |
 | 阈值告警 | 本小时破阈值弹 Windows 通知（30 分钟一次） | 0 |
 
-### 独立命令行版（不依赖工作台）
+### 独立命令行版（单文件，不依赖工作台）
 
-`github_trends.py` 复用同一套抓取函数，不需要启动工作台：
+[`github_trends.py`](github_trends.py) **整个 CLI 就这一个文件**，拷走就能跑（Python 3.8+，零第三方依赖）：
 
 ```bash
 python github_trends.py --days 7          # 最近 7 天，带条形图
@@ -196,7 +196,16 @@ python github_trends.py --days 7 --csv out.csv
 python github_trends.py --days 7 --json
 ```
 
-它只 import `server.py` 里的函数，不启动 HTTP 服务、不读面板开关（手动跑一次抓一次）。
+不启动工作台、不读面板开关，手动跑一次抓一次。同目录有 `config.json` 时读它的
+`github_proxies` / `github_proxy`，没有就用默认代理。
+
+**单独下载这一个文件**：[github_trends.py](github_trends.py) → Raw → 另存为，或
+
+```bash
+curl -O https://raw.githubusercontent.com/tianyadadi/dsh-workbench/main/github_trends.py
+```
+
+（需要能访问 `raw.githubusercontent.com`，国内网络可能要代理）
 
 ## 扩展面板
 
