@@ -981,6 +981,12 @@ header{z-index:1000}
 .cp-az-price{flex:none;color:var(--accent);font-family:Consolas,monospace}
 .cp-note{font-size:11px;color:var(--dim);line-height:1.8;margin-top:12px}
 
+/* ── 成本面板 ── */
+.cost-explain{font-size:12px;color:var(--dim);line-height:2;margin:4px 0 18px;
+  padding:12px 14px;border-left:2px solid var(--ok);background:rgba(126,231,135,.04);border-radius:0 6px 6px 0}
+.cost-explain b{color:var(--text)}
+.cost-explain b[data-hl]{color:var(--ok)}
+
 /* ── 本机配置 ─────────────────────────────────────────────── */
 .sys-gauges{display:flex;gap:22px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
 .sys-gauge{width:122px;text-align:center;flex:none}
@@ -2068,6 +2074,7 @@ function renderCost(d){
       <div class="bar"><i style="width:${total?Math.max(1,val/total*100):0}%;background:${color}"></i></div>
       <div class="val">${fmt(val)}</div>
     </div>`;
+  const wan = (n) => { n = Number(n)||0; return n >= 1e8 ? (n/1e8).toFixed(2)+' 亿' : (n/1e4).toFixed(0)+' 万'; };
   $('#main').innerHTML = `
     <h2>上下文成本 <small>会话 ${esc(d.session.slice(0,20))}</small></h2>
     <div class="grid" style="margin-bottom:22px">
@@ -2079,6 +2086,15 @@ function renderCost(d){
         <div class="sub">输出 ${fmt(d.output)}</div></div>
       <div class="card"><h3>估算花费</h3><div class="big">¥${(d.total_cost||0).toFixed(2)}</div>
         <div class="sub">单价可在 server.py 调整</div></div>
+      <div class="card" style="border-color:rgba(126,231,135,.25)"><h3>¥1 能买多少</h3>
+        <div class="big" style="color:var(--ok)">${wan((d.per_yuan||{}).out || 0)}</div>
+        <div class="sub">按输出价 · 输入 ${wan((d.per_yuan||{}).in || 0)} · 缓存 ${wan((d.per_yuan||{}).cache || 0)}</div></div>
+    </div>
+    <div class="cost-explain">
+      <b>怎么读这个数</b>：花 <b>¥1</b> 按输出价能买 <b>${wan((d.per_yuan||{}).out||0)} token</b>；
+      按未缓存输入价能买 <b>${wan((d.per_yuan||{}).in||0)}</b>；
+      缓存命中便宜 10 倍，能买 <b>${wan((d.per_yuan||{}).cache||0)}</b>。
+      本次会话估算花费 <b>¥${(d.total_cost||0).toFixed(2)}</b>。
     </div>
     <h2>构成</h2>
     ${row('系统提示', d.system_tokens||0, '#6b7bb0')}

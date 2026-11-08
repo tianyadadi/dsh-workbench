@@ -589,6 +589,12 @@ def scan_cost() -> dict:
     # 单价：元 / 百万 token（与 ctxcost 默认一致，可在页面里改）
     price_in, price_cache, price_out = 1.0, 0.1, 2.0
     total_cost = (uncached * price_in + cache * price_cache + out * price_out) / 1e6
+    # ¥1 能买多少 token（直观换算）
+    per_yuan = {
+        "in": round(1e6 / price_in),
+        "cache": round(1e6 / price_cache),
+        "out": round(1e6 / price_out),
+    }
     return {
         "session": files[-1].stem,
         "tools_tokens": bd.get("toolsTokens", 0),
@@ -602,6 +608,8 @@ def scan_cost() -> dict:
         "turns": ss.get("turns", 0),
         "steps": ss.get("steps", 0),
         "total_cost": round(total_cost, 4),
+        "rates": {"in": price_in, "cache": price_cache, "out": price_out},
+        "per_yuan": per_yuan,
     }
 
 
