@@ -1216,6 +1216,79 @@ except Exception as _cp_err:  # noqa: BLE001
         return {"ok": False, "error": "cloud_price.py 加载失败：%s" % _cp_err}
 
 
+# ── 本机配置（WMI / 性能计数器，只读、不联网）─────────────────────
+# 结构分两层，方便扩展：
+#   static —— 硬件信息，缓存 5 分钟（WMI 查询慢）
+#   live   —— 实时占用，每次请求现取
+# 以后加温度/风扇/电池：在 _SYS_LIVE_PS 里多取一个字段 + 前端多一个卡片即可。
+
+_SYS_STATIC = {"at": 0.0, "data": {}}
+_SYS_LIVE_AT = [0.0]
+_SYS_LIVE = [{}]
+
+
+def _ps_run(script: str, timeout: int = 15) -> str:
+    import subprocess
+    try:
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; " + script],
+            capture_output=True, timeout=timeout)
+        return r.stdout.decode("utf-8", "replace").strip()
+    except Exception:
+        return ""
+
+
+_SYS_STATIC_PS = r"""
+$ErrorActionPreference='SilentlyContinue'
+$cs=Get-CimInstance Win32_ComputerSystem
+$bb=Get-CimInstance Win32_BaseBoard
+$os=Get-CimInstance Win32_OperatingSystem
+$cpu=Get-CimInstance Win32_Processor|Select-Object -First 1
+$mem=@(Get-CimInstance Win32_PhysicalMemory|ForEach-Object{@{size=[math]::Round($_.Capacity/1GB);speed=$_.Speed;vendor=$_.Manufacturer}})
+$gpus=@(Get-CimInstance Win32_VideoController|ForEach-Object{@{name=$_.Name;vramWmi=[math]::Round($_.AdapterRAM/1MB)}})
+$disks=@(Get-CimInstance Win32_DiskDrive|ForEach-Object{@{model=$_.Model;size=[math]::Round($_.Size/1GB)}})
+$nics=@(Get-CimInstance Win32_NetworkAdapter|Where-Object{$_.PhysicalAdapter -and $_.Name -notmatch 'VMware|Virtual|虚拟|TAP|Loopback'}|ForEach-Object{$_.Name})
+$vram=@(Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\*' -Name 'HardwareInformation.qwMemorySize'|ForEach-Object{[math]::Round($_.'HardwareInformation.qwMemorySize'/1GB,1)})
+@{model=($cs.Manufacturer+' '+$cs.Model).Trim();board=$bb.Product;os=$os.Caption;osv=$os.Version;cpu=@{name=$cpu.Name;cores=$cpu.NumberOfCores;threads=$cpu.NumberOfLogicalProcessors;mhz=$cpu.MaxClockSpeed};mem=$mem;gpus=$gpus;vram=$vram;disks=$disks;nics=$nics}|ConvertTo-Json -Depth 4
+"""
+
+_SYS_LIVE_PS = r"""
+$ErrorActionPreference='SilentlyContinue'
+$cpu=(Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor|Where-Object{$_.Name -eq '_Total'}).PercentProcessorTime
+$os=Get-CimInstance Win32_OperatingSystem
+$g=(Get-Counter '\GPU Engine(*)\Utilization Percentage' -ErrorAction SilentlyContinue).CounterSamples|Measure-Object -Property CookedValue -Sum
+@{cpu=[int]$cpu;memUsed=[math]::Round(($os.TotalVisibleMemorySize-$os.FreePhysicalMemory)/1MB,1);memTotal=[math]::Round($os.TotalVisibleMemorySize/1MB,1);gpu=[math]::Round($g.Sum,1)}|ConvertTo-Json
+"""
+
+
+def scan_sysinfo() -> dict:
+    now = time.time()
+    # 静态配置：缓存 5 分钟
+    if (not _SYS_STATIC["data"]) or now - _SYS_STATIC["at"] > 300:
+        raw = _ps_run(_SYS_STATIC_PS)
+        try:
+            _SYS_STATIC["data"] = json.loads(raw)
+            _SYS_STATIC["at"] = now
+        except Exception:
+            pass
+    # 实时：1 秒内复用，避免前端刷新时重复跑 PowerShell
+    if now - _SYS_LIVE_AT[0] > 1.0 or not _SYS_LIVE[0]:
+        raw = _ps_run(_SYS_LIVE_PS, timeout=10)
+        try:
+            _SYS_LIVE[0] = json.loads(raw)
+            _SYS_LIVE_AT[0] = now
+        except Exception:
+            pass
+    return {
+        "ok": True,
+        "static": _SYS_STATIC["data"] or {},
+        "live": _SYS_LIVE[0] or {},
+        "cached_at": _SYS_STATIC["at"],
+        "updated": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
 # 面板注册表：加一行就多一个面板（key 对应 /api/<key>）
 PANELS = [
     ("overview", "概览", scan_overview),
@@ -1228,6 +1301,7 @@ PANELS = [
     ("tools", "工具开销", scan_tools),
     ("github", "GitHub 新增", scan_github),
     ("cloudprice", "云服务器比价", scan_cloudprice),
+    ("sysinfo", "本机配置", scan_sysinfo),
 ]
 
 # 核心插件不允许从面板里关掉，否则 DSH 起不来

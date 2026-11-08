@@ -980,6 +980,22 @@ header{z-index:1000}
 .cp-az-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cp-az-price{flex:none;color:var(--accent);font-family:Consolas,monospace}
 .cp-note{font-size:11px;color:var(--dim);line-height:1.8;margin-top:12px}
+
+/* ── 本机配置 ─────────────────────────────────────────────── */
+.sys-gauges{display:flex;gap:22px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+.sys-gauge{width:122px;text-align:center;flex:none}
+.sys-ring{width:122px;height:122px;display:block}
+.sys-ring-text{fill:var(--text);font-size:20px;font-weight:700;font-family:Consolas,monospace}
+.sys-gauge-label{font-size:12px;color:var(--dim);margin-top:4px}
+.sys-live-info{flex:1;min-width:280px;display:flex;flex-direction:column;gap:9px}
+.sys-live-row{display:flex;justify-content:space-between;gap:12px;font-size:13px;
+  border-bottom:1px dashed rgba(120,150,180,.12);padding-bottom:7px}
+.sys-live-row span{color:var(--dim);flex:none}
+.sys-live-row b{color:var(--text);font-weight:500;text-align:right;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sys-big{font-size:15px;font-weight:600;line-height:1.5}
+.sys-line{font-size:12px;color:var(--dim);line-height:1.95}
+.sys-line b{color:var(--accent)}
 </style>
 <script src="lib/three.min.js"></script>
 <script src="galaxy.js"></script>
@@ -1166,6 +1182,7 @@ async function load(key){
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on', b.dataset.key===key));
   const main = $('#main');
   ghStop();
+  if (typeof sysStop === 'function') sysStop();
   main.innerHTML = '<div class="empty">读取中…</div>';
   const data = await jget('/api/'+key);
   if(my !== loadToken) return            // 期间又点过别的面板，这次结果直接丢掉
@@ -1179,6 +1196,7 @@ async function load(key){
   if(key==='tools')    return renderTools(data);
   if(key==='github')   return renderGithub(data);
   if(key==='cloudprice') return renderCloudprice(data);
+  if(key==='sysinfo')   return renderSysinfo(data);
   return renderGeneric(key, data);   // 扩展面板：后端加一行，前端自动出页面
 }
 
@@ -2643,6 +2661,92 @@ function cpPaint(d){
       </div>`).join('');
     }
   }
+}
+
+/* ---------- 本机配置（WMI 只读 + 实时占用） ---------- */
+let sysTimer = null, sysStatic = null;
+
+function sysStop(){ if(sysTimer){ clearTimeout(sysTimer); sysTimer = null; } }
+
+function renderSysinfo(d){
+  sysStatic = d.static || {};
+  const s = sysStatic;
+  const cpu = s.cpu || {};
+  const mem = s.mem || [];
+  const gpus = s.gpus || [];
+  const vrams = s.vram || [];
+  const disks = s.disks || [];
+  const nics = s.nics || [];
+
+  $('#main').innerHTML = `
+    <h2>本机配置 <small>WMI 只读查询 · 不联网 · 每 3 秒刷新占用</small></h2>
+    <div class="sys-gauges">
+      <div class="sys-gauge"><div id="sysCpuRing"></div><div class="sys-gauge-label">CPU</div></div>
+      <div class="sys-gauge"><div id="sysGpuRing"></div><div class="sys-gauge-label">GPU</div></div>
+      <div class="sys-gauge"><div id="sysMemRing"></div><div class="sys-gauge-label">内存</div></div>
+      <div class="sys-live-info">
+        <div class="sys-live-row"><span>CPU 型号</span><b>${esc(cpu.name || '—')}</b></div>
+        <div class="sys-live-row"><span>核心 / 线程</span><b>${cpu.cores || '—'} 核 ${cpu.threads || '—'} 线程</b></div>
+        <div class="sys-live-row"><span>内存总量</span><b>${mem.reduce((a, x) => a + (x.size || 0), 0)} GB</b></div>
+        <div class="sys-live-row"><span>更新时间</span><b id="sysUpdated">${esc(d.updated || '')}</b></div>
+      </div>
+    </div>
+
+    <div class="grid sys-grid">
+      <div class="card"><h3>主机型号</h3><div class="sys-big">${esc(s.model || '—')}</div>
+        <div class="sub">主板 ${esc(s.board || '—')}</div></div>
+      <div class="card"><h3>操作系统</h3><div class="sys-big">${esc(s.os || '—')}</div>
+        <div class="sub">内核 ${esc(s.osv || '—')}</div></div>
+      <div class="card"><h3>内存条</h3>
+        ${mem.length ? mem.map(x => `<div class="sys-line">${x.size} GB · ${x.speed} MHz · ${esc(x.vendor || '')}</div>`).join('') : '<div class="sub">—</div>'}</div>
+      <div class="card"><h3>显卡</h3>
+        ${gpus.length ? gpus.map((g, i) => `<div class="sys-line">${esc(g.name)}${vrams[i] ? ` · <b>${vrams[i]} GB</b>` : ''}</div>`).join('') : '<div class="sub">—</div>'}</div>
+      <div class="card"><h3>磁盘</h3>
+        ${disks.length ? disks.map(x => `<div class="sys-line">${esc(x.model)} · ${x.size} GB</div>`).join('') : '<div class="sub">—</div>'}</div>
+      <div class="card"><h3>网卡</h3>
+        ${nics.length ? nics.map(x => `<div class="sys-line">${esc(x)}</div>`).join('') : '<div class="sub">—</div>'}</div>
+    </div>
+    <div class="cp-note">
+      <b>数据来源</b>：全部走本机 WMI / 性能计数器只读查询，不联网、不上传。
+      显存取自注册表（WMI 的 AdapterRAM 会截断到 4GB）。
+      <b>扩展</b>：后端 <span class="mono">scan_sysinfo()</span> 里的 <span class="mono">_SYS_LIVE_PS</span> 多取一个字段、
+      前端多一张卡就能加新指标（温度 / 风扇 / 电池 / 网络速率都行）。
+    </div>`;
+  sysPaintLive(d.live || {});
+  sysPoll();
+}
+
+async function sysPoll(){
+  if(state.cur !== 'sysinfo') return;
+  let d;
+  try { d = await jget('/api/sysinfo'); }
+  catch(e){ sysTimer = setTimeout(sysPoll, 5000); return; }
+  if(state.cur !== 'sysinfo') return;
+  sysPaintLive((d && d.live) || {});
+  const u = document.getElementById('sysUpdated');
+  if(u && d && d.updated) u.textContent = d.updated;
+  sysTimer = setTimeout(sysPoll, 3000);
+}
+
+function sysRing(pct, color) {
+  const p = Math.max(0, Math.min(100, Number(pct) || 0));
+  const R = 42, C = 2 * Math.PI * R;
+  const off = C * (1 - p / 100);
+  return `<svg viewBox="0 0 100 100" class="sys-ring">
+    <circle cx="50" cy="50" r="${R}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="8"/>
+    <circle cx="50" cy="50" r="${R}" fill="none" stroke="${color}" stroke-width="8"
+      stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"
+      transform="rotate(-90 50 50)" style="transition:stroke-dashoffset .6s ease"/>
+    <text x="50" y="55" text-anchor="middle" class="sys-ring-text">${Math.round(p)}%</text>
+  </svg>`;
+}
+
+function sysPaintLive(live){
+  const g = (id) => document.getElementById(id);
+  if(g('sysCpuRing')) g('sysCpuRing').innerHTML = sysRing(live.cpu, 'var(--accent)');
+  if(g('sysGpuRing')) g('sysGpuRing').innerHTML = sysRing(live.gpu, 'var(--accent2)');
+  const memPct = live.memTotal ? (live.memUsed / live.memTotal * 100) : 0;
+  if(g('sysMemRing')) g('sysMemRing').innerHTML = sysRing(memPct, 'var(--ok)');
 }
 
 /* ---------- 通用：以后新加的面板自动渲染 ---------- */
