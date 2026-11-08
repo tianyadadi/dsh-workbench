@@ -215,6 +215,9 @@ curl -O https://raw.githubusercontent.com/tianyadadi/dsh-workbench/main/github_t
 
 用来决定租哪台：个人 / 企业分档、勾选对比、综合推荐。
 
+**零配置就能用**：打开 `?panel=cloudprice` 看到的是内置参考价（15 个配置）+ 续费价 + 对比 + 推荐，
+**不需要任何 AK**。只有想看「官方标准价」时才需要配自己的云账号密钥（见下文，可选项）。
+
 **数据来源（重要，别当成实时价）**
 
 | 来源 | 厂商 | 性质 |
