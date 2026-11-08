@@ -2082,7 +2082,8 @@ function renderCost(d){
     <h2>上下文成本 <small>会话 ${esc(d.session.slice(0,20))}</small></h2>
     <div class="grid" style="margin-bottom:22px;grid-template-columns:repeat(auto-fill,minmax(172px,1fr))">
       <div class="card"><h3>窗口占用</h3><div class="big">${fmt(d.surface_tokens)}</div>
-        <div class="sub">${d.turns} 轮 · ${d.steps} 步</div></div>
+        <div class="sub">${d.turns} 轮 · ${d.steps} 步 · 压力 <b style="color:${(d.pressure||0)>85?'var(--bad)':(d.pressure||0)>70?'var(--warn)':'var(--ok)'}">${d.pressure||0}%</b></div>
+        ${(d.pressure||0)>85 ? `<div class="sub" style="color:var(--bad);margin-top:4px">⚠ 接近上限，在回合边界压缩</div>` : ''}</div>
       <div class="card"><h3>缓存命中</h3><div class="big">${d.cache_rate}%</div>
         <div class="sub">读取 ${fmt(d.cache_read)}</div></div>
       <div class="card"><h3>未缓存输入</h3><div class="big">${fmt(d.uncached_input)}</div>

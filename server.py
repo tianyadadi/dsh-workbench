@@ -595,6 +595,13 @@ def scan_cost() -> dict:
         "cache": round(1e6 / price_cache),
         "out": round(1e6 / price_out),
     }
+    # 上下文压力（借鉴天枢的 Sensorium：用已有数据算，不调模型）
+    try:
+        ctx_limit = int((load_json(CONFIG, {}) or {}).get("context_limit") or 200000)
+    except Exception:
+        ctx_limit = 200000
+    surface = cb.get("surfaceTokens", 0) or 0
+    pressure = round(surface / ctx_limit * 100, 1) if ctx_limit else 0.0
     return {
         "session": files[-1].stem,
         "tools_tokens": bd.get("toolsTokens", 0),
@@ -612,6 +619,8 @@ def scan_cost() -> dict:
         "cost_per_step": round(total_cost / max(1, ss.get("steps", 0)), 4),
         "rates": {"in": price_in, "cache": price_cache, "out": price_out},
         "per_yuan": per_yuan,
+        "context_limit": ctx_limit,
+        "pressure": pressure,
     }
 
 
