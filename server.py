@@ -608,6 +608,8 @@ def scan_cost() -> dict:
         "turns": ss.get("turns", 0),
         "steps": ss.get("steps", 0),
         "total_cost": round(total_cost, 4),
+        "cost_per_turn": round(total_cost / max(1, ss.get("turns", 0)), 4),
+        "cost_per_step": round(total_cost / max(1, ss.get("steps", 0)), 4),
         "rates": {"in": price_in, "cache": price_cache, "out": price_out},
         "per_yuan": per_yuan,
     }
