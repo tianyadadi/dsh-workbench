@@ -1244,6 +1244,39 @@ except Exception as _cp_err:  # noqa: BLE001
 _SYS_STATIC = {"at": 0.0, "data": {}}
 _SYS_LIVE_AT = [0.0]
 _SYS_LIVE = [{}]
+_SYS_WORKER = [None]
+_SYS_READY = threading.Event()
+_SYS_STATIC_FILE = HERE / "_sysinfo_static.json"
+_SYS_LIVE_FILE = HERE / "_sysinfo_live.json"
+
+
+def _sys_live_loop():
+    """后台线程：每 2 秒采一次实时数据，前端请求直接拿缓存（0ms）。
+
+    PowerShell 每次启动 ~0.7s，Get-Counter 再加 1s+，所以不能让请求等它。
+    """
+    while True:
+        try:
+            raw = _ps_run(_SYS_LIVE_PS, timeout=10)
+            d = json.loads(raw)
+            _SYS_LIVE[0] = d
+            _SYS_LIVE_AT[0] = time.time()
+            try:
+                _SYS_LIVE_FILE.write_text(json.dumps(d, ensure_ascii=False), "utf-8")
+            except Exception:
+                pass
+            _SYS_READY.set()
+        except Exception:
+            pass
+        time.sleep(2)
+
+
+def _ensure_sys_worker():
+    w = _SYS_WORKER[0]
+    if w is None or not w.is_alive():
+        t = threading.Thread(target=_sys_live_loop, daemon=True, name="sysinfo-live")
+        t.start()
+        _SYS_WORKER[0] = t
 
 
 def _ps_run(script: str, timeout: int = 15) -> str:
@@ -1283,22 +1316,38 @@ $g=(Get-Counter '\GPU Engine(*)\Utilization Percentage' -ErrorAction SilentlyCon
 
 def scan_sysinfo() -> dict:
     now = time.time()
-    # 静态配置：缓存 5 分钟
-    if (not _SYS_STATIC["data"]) or now - _SYS_STATIC["at"] > 300:
+    # 先启动实时线程（异步跑），再取静态，两边并行省时间
+    _ensure_sys_worker()
+    # 实时：先读上次落盘的值（重启后能立刻显示，不必等线程）
+    if not _SYS_LIVE[0]:
+        try:
+            d = json.loads(_SYS_LIVE_FILE.read_text("utf-8"))
+            if d:
+                _SYS_LIVE[0] = d
+                _SYS_READY.set()
+        except Exception:
+            pass
+    # 静态配置：先读磁盘缓存（重启后 0ms），过期再查 WMI
+    if not _SYS_STATIC["data"]:
+        try:
+            d = json.loads(_SYS_STATIC_FILE.read_text("utf-8"))
+            if d.get("data"):
+                _SYS_STATIC["data"] = d["data"]
+                _SYS_STATIC["at"] = float(d.get("at") or 0)
+        except Exception:
+            pass
+    if (not _SYS_STATIC["data"]) or now - _SYS_STATIC["at"] > 86400:
         raw = _ps_run(_SYS_STATIC_PS)
         try:
             _SYS_STATIC["data"] = json.loads(raw)
             _SYS_STATIC["at"] = now
+            _SYS_STATIC_FILE.write_text(
+                json.dumps({"at": now, "data": _SYS_STATIC["data"]}, ensure_ascii=False), "utf-8")
         except Exception:
             pass
-    # 实时：1 秒内复用，避免前端刷新时重复跑 PowerShell
-    if now - _SYS_LIVE_AT[0] > 1.0 or not _SYS_LIVE[0]:
-        raw = _ps_run(_SYS_LIVE_PS, timeout=10)
-        try:
-            _SYS_LIVE[0] = json.loads(raw)
-            _SYS_LIVE_AT[0] = now
-        except Exception:
-            pass
+    # 实时：请求只读缓存，首次最多等 4 秒（线程已经在跑了）
+    if not _SYS_READY.is_set():
+        _SYS_READY.wait(timeout=4)
     return {
         "ok": True,
         "static": _SYS_STATIC["data"] or {},

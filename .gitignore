@@ -32,3 +32,5 @@ graphify-out/
 # GitHub 面板缓存（可随时重建）
 _github_cache.json
 _github_cache.tmp
+_sysinfo_static.json
+_sysinfo_live.json
