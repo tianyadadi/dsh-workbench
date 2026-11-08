@@ -2475,7 +2475,7 @@ function ghList(items){
 }
 
 /* ---------- 云服务器比价（参考价 + Azure 实时） ---------- */
-let cpState = { segment: 'personal', cpu: 'all', sort: 'price', sel: [], data: null };
+let cpState = { segment: 'personal', cpu: 'all', sort: 'price', budget: 0, sel: [], data: null };
 
 function cpKey(r){ return r.vendor_id + '|' + r.segment + '|' + r.name; }
 
@@ -2522,6 +2522,13 @@ function renderCloudprice(d){
         <option value="price">按价格从低到高</option>
         <option value="score">按综合评分</option>
       </select>
+      <select class="cp-sel" id="cpBudget">
+        <option value="0">预算不限</option>
+        <option value="300">年成本 ≤ 300</option>
+        <option value="500">年成本 ≤ 500</option>
+        <option value="1000">年成本 ≤ 1000</option>
+        <option value="3000">年成本 ≤ 3000</option>
+      </select>
       <span id="cpCount" style="margin-left:auto;font-size:12px;color:var(--dim)"></span>
     </div>
     <div class="cp-grid" id="cpGrid"></div>
@@ -2562,6 +2569,8 @@ function renderCloudprice(d){
   });
   $('#cpCpu').onchange = (e) => { cpState.cpu = e.target.value; cpPaint(cpState.data); };
   $('#cpSort').onchange = (e) => { cpState.sort = e.target.value; cpPaint(cpState.data); };
+  const _bg = document.getElementById('cpBudget');
+  if(_bg) _bg.onchange = (e) => { cpState.budget = Number(e.target.value) || 0; cpPaint(cpState.data); };
   $('#cpClear').onclick = () => { cpState.sel = []; cpPaint(cpState.data); };
   // 支持分享对比链接：?panel=cloudprice&cmp=aliyun|personal|xxx,tencent|personal|yyy
   const _cmp = new URLSearchParams(location.search).get('cmp');
@@ -2581,7 +2590,8 @@ function cpToggle(key){
 function cpPaint(d){
   if(!d || d.ok === false) return;
   const rows = (d.rows || []).filter(r => r.segment === cpState.segment)
-    .filter(r => cpState.cpu === 'all' || String(r.cpu) === cpState.cpu);
+    .filter(r => cpState.cpu === 'all' || String(r.cpu) === cpState.cpu)
+    .filter(r => !cpState.budget || (r.year || 9e9) <= cpState.budget);
   rows.sort((a, b) => cpState.sort === 'price'
     ? (a.month || 9e9) - (b.month || 9e9)
     : (b.total_score || 0) - (a.total_score || 0));
